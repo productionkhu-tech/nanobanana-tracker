@@ -1,16 +1,15 @@
-"""Read SQLite, build public_repo/data.json. Pure aggregation; no secrets touched."""
+"""Read SQLite, build docs/data.json. Pure aggregation; no secrets touched."""
 from __future__ import annotations
 import json
 import sqlite3
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-# REPO root holds app/, docs/, .github/ — both locally and in CI.
 REPO = Path(__file__).resolve().parent.parent
 DB_PATH = REPO / "app" / "db.sqlite"
 OUT_PATH = REPO / "docs" / "data.json"
 
-NANOBANANA_SERVICES = {"Gemini API", "Vertex AI"}  # GCP service.description matches
+NANOBANANA_SERVICES = {"Gemini API", "Vertex AI"}
 
 
 def is_image_line(line_item: str) -> bool:
@@ -18,56 +17,58 @@ def is_image_line(line_item: str) -> bool:
     return s.startswith("gpt-image") or "dall-e" in s or s.startswith("dalle")
 
 
-def utc_today() -> str:
+def utc_today_str() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
-def fetch_rows(c: sqlite3.Connection) -> list[sqlite3.Row]:
+def fetch_rows(c):
     return list(c.execute(
         "SELECT source, category, date, request_count, image_count, cost_usd, gross_cost "
         "FROM usage_daily ORDER BY date"
     ))
 
 
-def fetch_sync(c: sqlite3.Connection) -> dict[str, dict]:
+def fetch_sync(c):
     out = {}
     for r in c.execute("SELECT source, last_run_ts, last_data_ts, status, error_msg FROM sync_log"):
         out[r["source"]] = dict(r)
     return out
 
 
-def date_in_range(d: str, start: str, end: str) -> bool:
-    return start <= d <= end
-
-
-def build_source_view(rows: list[sqlite3.Row], source: str,
-                      include_pred, primary_label: str) -> dict:
-    """Cost-only view; non-primary categories are filtered out (per user request)."""
-    today = utc_today()
+def build_source_view(rows, source, include_pred, primary_label):
+    today = utc_today_str()
     today_dt = datetime.fromisoformat(today)
+    yesterday = (today_dt - timedelta(days=1)).strftime("%Y-%m-%d")
+    week_start = (today_dt - timedelta(days=6)).strftime("%Y-%m-%d")
+    last_week_same_day = (today_dt - timedelta(days=7)).strftime("%Y-%m-%d")
     month_start = today_dt.replace(day=1).strftime("%Y-%m-%d")
+    last_month_dt = (today_dt.replace(day=1) - timedelta(days=1)).replace(day=1)
+    last_month_start = last_month_dt.strftime("%Y-%m-%d")
+    last_month_end = today_dt.replace(day=1).strftime("%Y-%m-%d")  # exclusive
     year_start = today_dt.replace(month=1, day=1).strftime("%Y-%m-%d")
     year_ago = (today_dt - timedelta(days=364)).strftime("%Y-%m-%d")
 
     daily_cost: dict[str, float] = {}
     by_category_total: dict[str, float] = {}
 
-    totals = {"today": 0.0, "month": 0.0, "year": 0.0}
-
     for r in rows:
         if r["source"] != source:
             continue
-        cat = r["category"]
-        if not include_pred(cat):
+        if not include_pred(r["category"]):
             continue
         d = r["date"]
         cost = r["cost_usd"] or 0.0
         daily_cost[d] = daily_cost.get(d, 0.0) + cost
-        by_category_total[cat] = by_category_total.get(cat, 0.0) + cost
+        by_category_total[r["category"]] = by_category_total.get(r["category"], 0.0) + cost
 
-        if d == today:    totals["today"] += cost
-        if d >= month_start: totals["month"] += cost
-        if d >= year_start:  totals["year"]  += cost
+    sumr = lambda lo, hi=None: sum(v for d, v in daily_cost.items() if d >= lo and (hi is None or d < hi))
+    today_cost = daily_cost.get(today, 0.0)
+    yesterday_cost = daily_cost.get(yesterday, 0.0)
+    week_cost = sumr(week_start)
+    last_week_same_cost = daily_cost.get(last_week_same_day, 0.0)
+    month_cost = sumr(month_start)
+    last_month_cost = sumr(last_month_start, last_month_end)
+    year_cost = sumr(year_start)
 
     series = []
     cur = datetime.fromisoformat(year_ago)
@@ -81,9 +82,23 @@ def build_source_view(rows: list[sqlite3.Row], source: str,
         key=lambda x: -x["cost"],
     )
 
+    days_into_month = today_dt.day
+    last_day_of_month = (today_dt.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+    days_in_month_n = last_day_of_month.day
+    month_projection = (month_cost / max(days_into_month, 1)) * days_in_month_n if days_into_month >= 1 else 0
+
     return {
         "primary_label": primary_label,
-        "totals": {k: {"cost": round(v, 4)} for k, v in totals.items()},
+        "totals": {
+            "today":              {"cost": round(today_cost, 4)},
+            "yesterday":          {"cost": round(yesterday_cost, 4)},
+            "week":               {"cost": round(week_cost, 4)},
+            "last_week_same_day": {"cost": round(last_week_same_cost, 4)},
+            "month":              {"cost": round(month_cost, 4)},
+            "last_month":         {"cost": round(last_month_cost, 4)},
+            "month_projection":   {"cost": round(month_projection, 4)},
+            "year":               {"cost": round(year_cost, 4)},
+        },
         "category_breakdown": cat_breakdown,
         "daily": series,
     }
@@ -96,30 +111,34 @@ def main() -> None:
     sync = fetch_sync(c)
     c.close()
 
-    nano = build_source_view(
-        rows, source="gcp",
-        include_pred=lambda cat: cat in NANOBANANA_SERVICES,
-        primary_label="NanoBanana (Gemini + Vertex)",
-    )
-    openai = build_source_view(
-        rows, source="openai",
-        include_pred=is_image_line,
-        primary_label="GPT Image 2",
-    )
+    nano = build_source_view(rows, source="gcp",
+                             include_pred=lambda cat: cat in NANOBANANA_SERVICES,
+                             primary_label="NanoBanana (Gemini + Vertex)")
+    openai = build_source_view(rows, source="openai",
+                               include_pred=is_image_line,
+                               primary_label="GPT Image 2")
+
+    combined = {}
+    for k in ("today", "yesterday", "week", "last_week_same_day",
+              "month", "last_month", "month_projection", "year"):
+        combined[k] = {"cost": round(
+            nano["totals"][k]["cost"] + openai["totals"][k]["cost"], 4)}
 
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "approx_krw_per_usd": 1450,
+        "totals_combined": combined,
         "sources": {
             "nanobanana": {
                 **nano,
                 "sync": sync.get("gcp", {}),
-                "delay_note": "GCP billing export delays usage data by several hours up to ~24h.",
+                "delay_note": "GCP 빌링 export는 1~24시간 지연됩니다.",
             },
             "openai": {
                 **openai,
                 "sync": sync.get("openai", {}),
-                "delay_note": "OpenAI usage updates within minutes.",
+                "delay_note": "OpenAI 사용량 API는 30~60분 지연됩니다.",
             },
         },
     }

@@ -1,6 +1,33 @@
 {
-  "schema_version": 1,
-  "generated_at": "2026-05-08T13:55:02+00:00",
+  "schema_version": 2,
+  "generated_at": "2026-05-08T14:08:26+00:00",
+  "approx_krw_per_usd": 1450,
+  "totals_combined": {
+    "today": {
+      "cost": 132.6542
+    },
+    "yesterday": {
+      "cost": 109.914
+    },
+    "week": {
+      "cost": 253.9255
+    },
+    "last_week_same_day": {
+      "cost": 0.0
+    },
+    "month": {
+      "cost": 253.9255
+    },
+    "last_month": {
+      "cost": 48.3336
+    },
+    "month_projection": {
+      "cost": 983.9612
+    },
+    "year": {
+      "cost": 302.2591
+    }
+  },
   "sources": {
     "nanobanana": {
       "primary_label": "NanoBanana (Gemini + Vertex)",
@@ -8,8 +35,23 @@
         "today": {
           "cost": 132.6542
         },
+        "yesterday": {
+          "cost": 0.0
+        },
+        "week": {
+          "cost": 133.1404
+        },
+        "last_week_same_day": {
+          "cost": 0.0
+        },
         "month": {
           "cost": 133.1404
+        },
+        "last_month": {
+          "cost": 0
+        },
+        "month_projection": {
+          "cost": 515.9191
         },
         "year": {
           "cost": 133.1404
@@ -1489,12 +1531,12 @@
       ],
       "sync": {
         "source": "gcp",
-        "last_run_ts": 1778248438,
+        "last_run_ts": 1778248876,
         "last_data_ts": 1778198400,
         "status": "ok",
         "error_msg": null
       },
-      "delay_note": "GCP billing export delays usage data by several hours up to ~24h."
+      "delay_note": "GCP 빌링 export는 1~24시간 지연됩니다."
     },
     "openai": {
       "primary_label": "GPT Image 2",
@@ -1502,8 +1544,23 @@
         "today": {
           "cost": 0.0
         },
+        "yesterday": {
+          "cost": 109.914
+        },
+        "week": {
+          "cost": 120.7851
+        },
+        "last_week_same_day": {
+          "cost": 0.0
+        },
         "month": {
           "cost": 120.7851
+        },
+        "last_month": {
+          "cost": 48.3336
+        },
+        "month_projection": {
+          "cost": 468.0421
         },
         "year": {
           "cost": 169.1187
@@ -2999,12 +3056,12 @@
       ],
       "sync": {
         "source": "openai",
-        "last_run_ts": 1778248502,
+        "last_run_ts": 1778248950,
         "last_data_ts": 1778112000,
         "status": "ok",
         "error_msg": null
       },
-      "delay_note": "OpenAI usage updates within minutes."
+      "delay_note": "OpenAI 사용량 API는 30~60분 지연됩니다."
     }
   }
 }

@@ -3,132 +3,241 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>NanoBanana / GPT-Image-2 Cost</title>
+<title>API 사용 비용 대시보드</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
 <style>
   :root{
-    --bg:#0b0e14; --panel:#141923; --panel2:#1b2230; --line:#262f42;
-    --text:#e7ecf3; --mute:#8d99ad; --good:#10b981; --warn:#f59e0b; --bad:#ef4444;
-    --nano:#7c3aed; --gpt:#10b981;
+    --bg:#0a0d13; --panel:#131824; --panel2:#1a2030; --line:#262f42; --line2:#1f2738;
+    --text:#e7ecf3; --muted:#8b96ad; --dim:#5c6680;
+    --good:#10b981; --warn:#f59e0b; --bad:#ef4444; --info:#7fb6ff;
+    --nano:#a78bfa; --nano-bg:#7c3aed1f;
+    --gpt:#34d399; --gpt-bg:#10b9811f;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Malgun Gothic,sans-serif}
-  header{padding:18px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-  header h1{font-size:18px;margin:0;font-weight:600;letter-spacing:-.01em}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font:14px/1.5 -apple-system,'Segoe UI',Roboto,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    -webkit-font-smoothing:antialiased}
+  a{color:var(--info)}
+
+  header{padding:20px 28px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:#070a10}
+  header h1{font-size:17px;margin:0;font-weight:600;letter-spacing:-.01em;color:var(--text)}
+  header .badge{font-size:10px;padding:2px 8px;border-radius:4px;background:#1f2a44;
+    color:#9bb6ff;letter-spacing:.06em;margin-left:8px;text-transform:uppercase;font-weight:600}
   header .grow{flex:1}
-  header .meta{display:flex;gap:14px;font-size:12px;color:var(--mute);align-items:center;flex-wrap:wrap}
-  .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-size:12px}
-  .pill .dot{width:6px;height:6px;border-radius:50%;background:var(--good)}
-  .pill.warn .dot{background:var(--warn)}
-  .pill.bad .dot{background:var(--bad)}
-  main{padding:20px 24px 60px;max-width:1400px;margin:0 auto}
-  .grid{display:grid;gap:16px}
-  .grid.sources{grid-template-columns:1fr 1fr}
-  @media (max-width:900px){.grid.sources{grid-template-columns:1fr}}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
-  .card h2{margin:0 0 4px;font-size:15px;letter-spacing:-.01em}
-  .card .sub{color:var(--mute);font-size:12px;margin-bottom:12px}
-  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-  .kpi{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:14px}
-  .kpi .lbl{color:var(--mute);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
-  .kpi .v{font-size:24px;font-weight:600;margin-top:4px;letter-spacing:-.02em}
-  .legend-row{display:flex;gap:14px;font-size:12px;color:var(--mute);margin-bottom:8px;align-items:center}
-  .legend-row .sw{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle;margin-right:6px}
-  .seg{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-left:auto}
-  .seg button{background:transparent;border:0;color:var(--mute);padding:6px 12px;font-size:12px;cursor:pointer}
+  header .meta{display:flex;gap:10px;font-size:12px;color:var(--muted);align-items:center;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;
+    background:var(--panel);border:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--good);
+    box-shadow:0 0 0 3px rgba(16,185,129,.18)}
+  .pill.warn .dot{background:var(--warn);box-shadow:0 0 0 3px rgba(245,158,11,.18)}
+  .pill.bad  .dot{background:var(--bad); box-shadow:0 0 0 3px rgba(239,68,68,.18)}
+
+  main{padding:24px 28px 80px;max-width:1500px;margin:0 auto}
+
+  .headline{background:linear-gradient(180deg,#1a2138 0%,#131824 100%);
+    border:1px solid var(--line);border-radius:14px;padding:24px 28px;margin-bottom:18px}
+  .headline .label{color:var(--muted);font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;font-weight:600}
+  .headline .big{font-size:48px;font-weight:700;letter-spacing:-.02em;margin-top:6px;
+    font-variant-numeric:tabular-nums}
+  .headline .krw{color:var(--muted);font-size:18px;margin-left:14px;font-weight:500}
+  .headline .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:14px}
+  @media (max-width:760px){.headline .grid{grid-template-columns:repeat(2,1fr)}}
+  .headline-cell{padding-top:10px;border-top:1px solid var(--line)}
+  .headline-cell .l{color:var(--muted);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+  .headline-cell .v{font-size:20px;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums}
+  .headline-cell .k{color:var(--muted);font-size:12px;font-weight:500}
+
+  .grid.sources{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media (max-width:1000px){.grid.sources{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .card-head{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .card-head h2{margin:0;font-size:16px;font-weight:600;letter-spacing:-.01em}
+  .card-head .pill-tag{font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600}
+  .card-head .pill-tag.nano{background:var(--nano-bg);color:var(--nano)}
+  .card-head .pill-tag.gpt{background:var(--gpt-bg);color:var(--gpt)}
+  .card-sub{color:var(--muted);font-size:12px;margin-bottom:14px}
+
+  .kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+  .kpi{background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:14px}
+  .kpi .l{color:var(--muted);font-size:10.5px;letter-spacing:.08em;
+    text-transform:uppercase;font-weight:600}
+  .kpi .v{font-size:22px;font-weight:600;margin-top:5px;letter-spacing:-.01em;
+    font-variant-numeric:tabular-nums}
+  .kpi .k{color:var(--dim);font-size:11.5px;margin-top:1px}
+  .kpi .delta{font-size:11px;margin-top:4px;font-weight:500}
+  .kpi .delta.up{color:var(--bad)}
+  .kpi .delta.down{color:var(--good)}
+  .kpi .delta.flat{color:var(--dim)}
+
+  .chart-head{display:flex;align-items:center;gap:14px;font-size:12px;
+    color:var(--muted);margin-bottom:10px;flex-wrap:wrap}
+  .chart-head .legend{display:flex;align-items:center;gap:8px}
+  .chart-head .legend .sw{width:10px;height:10px;border-radius:2px}
+  .seg{display:inline-flex;background:var(--panel2);border:1px solid var(--line2);
+    border-radius:8px;overflow:hidden;margin-left:auto}
+  .seg button{background:transparent;border:0;color:var(--muted);
+    padding:6px 12px;font-size:12px;cursor:pointer;font-weight:500}
   .seg button.on{background:#0a72ff22;color:#7fb6ff}
-  .row-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-  .breakdown{display:grid;grid-template-columns:1fr auto;gap:6px 14px;font-size:12.5px}
+  .chart-wrap{position:relative;height:220px;margin-bottom:14px}
+
+  .bd-title{color:var(--muted);font-size:11px;letter-spacing:.08em;
+    text-transform:uppercase;margin-bottom:10px;font-weight:600}
+  .breakdown{display:grid;grid-template-columns:1fr auto;gap:8px 14px;font-size:12.5px}
   .breakdown .cat{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .breakdown .val{color:var(--mute);font-variant-numeric:tabular-nums}
-  .chart-wrap{position:relative;height:240px}
-  .footer{margin-top:24px;color:var(--mute);font-size:11px;line-height:1.7}
-  .footer code{background:var(--panel2);padding:2px 6px;border-radius:4px}
-  .badge{font-size:10px;padding:1px 6px;border-radius:4px;background:#1f2a44;color:#9bb6ff;letter-spacing:.05em;margin-left:6px}
+  .breakdown .val{color:var(--muted);font-variant-numeric:tabular-nums}
+
+  .notes{margin-top:24px;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:18px 22px;color:var(--muted);font-size:12.5px;line-height:1.7}
+  .notes b{color:var(--text)}
+  .notes ul{margin:8px 0 0;padding-left:18px}
+  .notes li{margin-bottom:4px}
 </style>
 </head>
 <body>
+
 <header>
-  <h1>NanoBanana &nbsp;·&nbsp; GPT-Image-2 <span class="badge">Cost Tracker · USD</span></h1>
+  <h1>API 사용 비용 대시보드<span class="badge">Live</span></h1>
   <div class="grow"></div>
   <div class="meta">
-    <span id="tickPill" class="pill"><span class="dot"></span><span id="tickText">loading…</span></span>
-    <span id="genPill" class="pill"><span class="dot"></span><span id="genText">—</span></span>
+    <span id="tickPill" class="pill"><span class="dot"></span><span id="tickText">로딩…</span></span>
+    <span id="genPill"  class="pill"><span class="dot"></span><span id="genText">—</span></span>
   </div>
 </header>
 
 <main>
+  <section class="headline">
+    <div class="label">이번 달 누적 비용 (NanoBanana + GPT Image 2)</div>
+    <div>
+      <span class="big" id="hl-month">$—</span>
+      <span class="krw" id="hl-month-krw">—</span>
+    </div>
+    <div class="grid">
+      <div class="headline-cell">
+        <div class="l">오늘</div>
+        <div class="v" id="hl-today">$—</div>
+        <div class="k" id="hl-today-krw">—</div>
+      </div>
+      <div class="headline-cell">
+        <div class="l">최근 7일</div>
+        <div class="v" id="hl-week">$—</div>
+        <div class="k" id="hl-week-krw">—</div>
+      </div>
+      <div class="headline-cell">
+        <div class="l">월말 예상 (현재 추세 시)</div>
+        <div class="v" id="hl-projection">$—</div>
+        <div class="k" id="hl-projection-krw">—</div>
+      </div>
+      <div class="headline-cell">
+        <div class="l">올해 누적</div>
+        <div class="v" id="hl-year">$—</div>
+        <div class="k" id="hl-year-krw">—</div>
+      </div>
+    </div>
+  </section>
+
   <div class="grid sources">
-    <section class="card" id="card-nano">
-      <div class="row-header">
-        <h2 style="color:var(--nano)">● NanoBanana (Gemini API + Vertex AI)</h2>
+
+    <section class="card">
+      <div class="card-head">
+        <span class="pill-tag nano">NanoBanana</span>
+        <h2>Gemini API + Vertex AI</h2>
       </div>
-      <div class="sub" id="sub-nano">—</div>
-      <div class="kpis">
-        <div class="kpi"><div class="lbl">Today</div><div class="v" id="nano-today">$—</div></div>
-        <div class="kpi"><div class="lbl">This Month</div><div class="v" id="nano-month">$—</div></div>
-        <div class="kpi"><div class="lbl">This Year</div><div class="v" id="nano-year">$—</div></div>
-      </div>
-      <div style="margin-top:14px">
-        <div class="legend-row">
-          <span><span class="sw" style="background:var(--nano)"></span>NanoBanana 비용 (USD)</span>
-          <div class="seg" id="seg-nano">
-            <button data-r="day" class="on">일</button>
-            <button data-r="month">월</button>
-            <button data-r="year">연</button>
-          </div>
+      <div class="card-sub" id="sub-nano">—</div>
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="l">오늘</div>
+          <div class="v" id="nano-today">$—</div>
+          <div class="k" id="nano-today-krw">—</div>
+          <div class="delta" id="nano-today-d">—</div>
         </div>
-        <div class="chart-wrap"><canvas id="chart-nano"></canvas></div>
+        <div class="kpi">
+          <div class="l">이번 달</div>
+          <div class="v" id="nano-month">$—</div>
+          <div class="k" id="nano-month-krw">—</div>
+          <div class="delta" id="nano-month-d">—</div>
+        </div>
+        <div class="kpi">
+          <div class="l">올해</div>
+          <div class="v" id="nano-year">$—</div>
+          <div class="k" id="nano-year-krw">—</div>
+        </div>
       </div>
-      <div style="margin-top:14px">
-        <div class="sub">서비스별 누적 (전체)</div>
-        <div class="breakdown" id="bd-nano"></div>
+      <div class="chart-head">
+        <span class="legend"><span class="sw" style="background:var(--nano)"></span>NanoBanana 일별 비용</span>
+        <div class="seg" id="seg-nano">
+          <button data-r="day" class="on">일</button>
+          <button data-r="month">월</button>
+          <button data-r="year">연</button>
+        </div>
       </div>
+      <div class="chart-wrap"><canvas id="chart-nano"></canvas></div>
+      <div class="bd-title">서비스별 누적 (전체 기간)</div>
+      <div class="breakdown" id="bd-nano"></div>
     </section>
 
-    <section class="card" id="card-openai">
-      <div class="row-header">
-        <h2 style="color:var(--gpt)">● GPT Image 2</h2>
+    <section class="card">
+      <div class="card-head">
+        <span class="pill-tag gpt">GPT Image 2</span>
+        <h2>OpenAI Image API</h2>
       </div>
-      <div class="sub" id="sub-openai">—</div>
-      <div class="kpis">
-        <div class="kpi"><div class="lbl">Today</div><div class="v" id="oa-today">$—</div></div>
-        <div class="kpi"><div class="lbl">This Month</div><div class="v" id="oa-month">$—</div></div>
-        <div class="kpi"><div class="lbl">This Year</div><div class="v" id="oa-year">$—</div></div>
-      </div>
-      <div style="margin-top:14px">
-        <div class="legend-row">
-          <span><span class="sw" style="background:var(--gpt)"></span>GPT Image 2 비용 (USD)</span>
-          <div class="seg" id="seg-openai">
-            <button data-r="day" class="on">일</button>
-            <button data-r="month">월</button>
-            <button data-r="year">연</button>
-          </div>
+      <div class="card-sub" id="sub-openai">—</div>
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="l">오늘</div>
+          <div class="v" id="oa-today">$—</div>
+          <div class="k" id="oa-today-krw">—</div>
+          <div class="delta" id="oa-today-d">—</div>
         </div>
-        <div class="chart-wrap"><canvas id="chart-openai"></canvas></div>
+        <div class="kpi">
+          <div class="l">이번 달</div>
+          <div class="v" id="oa-month">$—</div>
+          <div class="k" id="oa-month-krw">—</div>
+          <div class="delta" id="oa-month-d">—</div>
+        </div>
+        <div class="kpi">
+          <div class="l">올해</div>
+          <div class="v" id="oa-year">$—</div>
+          <div class="k" id="oa-year-krw">—</div>
+        </div>
       </div>
-      <div style="margin-top:14px">
-        <div class="sub">라인 아이템별 누적 (전체)</div>
-        <div class="breakdown" id="bd-openai"></div>
+      <div class="chart-head">
+        <span class="legend"><span class="sw" style="background:var(--gpt)"></span>GPT Image 2 일별 비용</span>
+        <div class="seg" id="seg-openai">
+          <button data-r="day" class="on">일</button>
+          <button data-r="month">월</button>
+          <button data-r="year">연</button>
+        </div>
       </div>
+      <div class="chart-wrap"><canvas id="chart-openai"></canvas></div>
+      <div class="bd-title">라인 아이템별 누적 (전체 기간)</div>
+      <div class="breakdown" id="bd-openai"></div>
     </section>
+
   </div>
 
-  <div class="footer">
-    데이터: GCP Billing Export → BigQuery (NanoBanana, KRW→USD 환산) · OpenAI Admin API (GPT Image 2, USD 원본).
-    수집 5분 주기. GCP는 빌링 export 자체가 수 시간 ~ 24시간 지연됩니다. 페이지는 <code>data.json</code>을 60초마다 다시 가져옵니다.
-  </div>
+  <section class="notes">
+    <b>읽는 법</b>
+    <ul>
+      <li><b>비용</b>은 모두 <b>USD 정가(list)</b> 기준입니다 — "이만큼의 API 호출을 했다"는 사용량 측정값. 무료 크레딧/Free Tier 차감 전 금액입니다.</li>
+      <li>원화 표시는 1 USD ≈ <span id="fx-rate">1,450</span>원 환산 추정값으로, GCP 빌링 화면의 실제 청구 KRW와는 환율·세금 등으로 차이가 날 수 있습니다.</li>
+      <li><b>오늘</b> 수치는 데이터 지연 때문에 마감 시점까지 점진적으로 확정됩니다 — GCP 빌링 export는 1~24시간 지연, OpenAI 사용량 API는 30~60분 지연.</li>
+      <li>수집은 GitHub Actions cron이 5분 주기로 자동 실행 (사용자 PC와 무관, 24/7 동작).</li>
+    </ul>
+  </section>
 </main>
 
 <script>
-const NANO_COLOR = '#7c3aed';
-const GPT_COLOR  = '#10b981';
+const NANO_COLOR = '#a78bfa';
+const GPT_COLOR  = '#34d399';
 const REFETCH_MS = 60_000;
 
 const $ = (s) => document.querySelector(s);
-const fmtUsd = (n) => '$' + (Math.round((n||0)*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const usd = (n) => '$' + (Math.round((n||0)*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const krw = (n, fx) => '₩' + Math.round((n||0)*fx).toLocaleString('ko-KR');
 
-let charts = { nano: null, openai: null };
+let charts = {};
 let lastData = null;
 
 async function fetchData() {
@@ -137,16 +246,45 @@ async function fetchData() {
   return await r.json();
 }
 
-function renderKPI(prefix, totals) {
-  $(`#${prefix}-today`).textContent = fmtUsd(totals.today.cost);
-  $(`#${prefix}-month`).textContent = fmtUsd(totals.month.cost);
-  $(`#${prefix}-year`).textContent  = fmtUsd(totals.year.cost);
+function deltaText(cur, prev, label) {
+  if (prev === 0 && cur === 0) return '—';
+  if (prev === 0) return `${label} 0 → +${usd(cur)}`;
+  const d = cur - prev;
+  const pct = (d / Math.max(0.01, Math.abs(prev))) * 100;
+  const sign = d > 0 ? '+' : '';
+  const cls = Math.abs(d) < 0.01 ? 'flat' : d > 0 ? 'up' : 'down';
+  return `<span class="delta ${cls}">${sign}${usd(d)} (${sign}${pct.toFixed(0)}%) vs ${label}</span>`;
+}
+
+function setKpi(prefix, totals, fx) {
+  const t = totals;
+  $(`#${prefix}-today`).textContent = usd(t.today.cost);
+  $(`#${prefix}-today-krw`).textContent = '약 ' + krw(t.today.cost, fx);
+  $(`#${prefix}-month`).textContent = usd(t.month.cost);
+  $(`#${prefix}-month-krw`).textContent = '약 ' + krw(t.month.cost, fx);
+  $(`#${prefix}-year`).textContent = usd(t.year.cost);
+  $(`#${prefix}-year-krw`).textContent = '약 ' + krw(t.year.cost, fx);
+  $(`#${prefix}-today-d`).innerHTML =
+    deltaText(t.today.cost, t.last_week_same_day.cost, '지난주 같은 요일');
+  $(`#${prefix}-month-d`).innerHTML =
+    deltaText(t.month.cost, t.last_month.cost, '지난달 전체');
+}
+
+function setHeadline(combined, fx) {
+  $('#hl-month').textContent = usd(combined.month.cost);
+  $('#hl-month-krw').textContent = '· 약 ' + krw(combined.month.cost, fx);
+  $('#hl-today').textContent = usd(combined.today.cost);
+  $('#hl-today-krw').textContent = '약 ' + krw(combined.today.cost, fx);
+  $('#hl-week').textContent = usd(combined.week.cost);
+  $('#hl-week-krw').textContent = '약 ' + krw(combined.week.cost, fx);
+  $('#hl-projection').textContent = usd(combined.month_projection.cost);
+  $('#hl-projection-krw').textContent = '약 ' + krw(combined.month_projection.cost, fx);
+  $('#hl-year').textContent = usd(combined.year.cost);
+  $('#hl-year-krw').textContent = '약 ' + krw(combined.year.cost, fx);
 }
 
 function aggSeries(daily, range) {
-  if (range === 'day') {
-    return daily.slice(-30).map(d => ({label: d.date.slice(5), v: d.cost}));
-  }
+  if (range === 'day') return daily.slice(-30).map(d => ({label: d.date.slice(5), v: d.cost}));
   if (range === 'month') {
     const buckets = {};
     for (const d of daily) {
@@ -158,7 +296,7 @@ function aggSeries(daily, range) {
   }
   let v = 0;
   for (const d of daily) v += d.cost;
-  return [{label: 'Last 365d', v}];
+  return [{label: '최근 365일', v}];
 }
 
 function renderChart(canvasId, daily, range, color) {
@@ -169,17 +307,25 @@ function renderChart(canvasId, daily, range, color) {
     type: 'bar',
     data: {
       labels: series.map(s => s.label),
-      datasets: [{ data: series.map(s => s.v), backgroundColor: color, borderRadius: 4 }],
+      datasets: [{ data: series.map(s => s.v), backgroundColor: color, borderRadius: 4, borderSkipped: false }],
     },
     options: {
       maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: (ctx) => fmtUsd(ctx.parsed.y) } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => usd(ctx.parsed.y) + '  (약 ' + krw(ctx.parsed.y, lastData.approx_krw_per_usd) + ')',
+          },
+          backgroundColor: '#0a0d13',
+          borderColor: '#262f42',
+          borderWidth: 1,
+          titleColor: '#e7ecf3', bodyColor: '#e7ecf3',
+        },
       },
       scales: {
-        x: { ticks: { color: '#8d99ad', maxRotation: 0, autoSkip: true }, grid: { display: false } },
-        y: { ticks: { color: '#8d99ad', callback: (v) => fmtUsd(v) }, grid: { color: '#26304240' } },
+        x: { ticks: { color: '#8b96ad', maxRotation: 0, autoSkip: true }, grid: { display: false } },
+        y: { ticks: { color: '#8b96ad', callback: (v) => usd(v) }, grid: { color: '#26304240' } },
       },
     },
   });
@@ -188,24 +334,24 @@ function renderChart(canvasId, daily, range, color) {
 function renderBreakdown(elId, items, max=8) {
   const el = $('#' + elId);
   el.innerHTML = '';
-  if (!items.length) { el.innerHTML = '<span class="cat" style="color:var(--mute)">데이터 없음</span><span class="val"></span>'; return; }
+  if (!items.length) {
+    el.innerHTML = '<span class="cat" style="color:var(--dim)">데이터 없음</span><span class="val"></span>';
+    return;
+  }
   for (const it of items.slice(0, max)) {
     const c = document.createElement('div'); c.className = 'cat'; c.textContent = it.category;
-    const v = document.createElement('div'); v.className = 'val'; v.textContent = fmtUsd(it.cost);
+    const v = document.createElement('div'); v.className = 'val'; v.textContent = usd(it.cost);
     el.appendChild(c); el.appendChild(v);
   }
 }
 
 function renderSyncPills(d) {
-  const gen = new Date(d.generated_at);
-  $('#genText').textContent = '생성: ' + gen.toLocaleString();
-
+  $('#genText').textContent = '데이터 갱신: ' + new Date(d.generated_at).toLocaleString('ko-KR');
   const tick = () => {
     if (!lastData) return;
     const ageSec = Math.max(0, Math.floor((Date.now() - new Date(lastData.generated_at).getTime())/1000));
     const mm = Math.floor(ageSec/60), ss = ageSec%60;
-    const txt = ageSec < 60 ? `방금 갱신` : `${mm}분 ${ss}초 전 갱신`;
-    $('#tickText').textContent = txt;
+    $('#tickText').textContent = ageSec < 60 ? '방금 갱신' : `${mm}분 ${ss}초 전 갱신`;
     const pill = $('#tickPill');
     pill.classList.remove('warn','bad');
     if (ageSec > 15*60) pill.classList.add('bad');
@@ -216,16 +362,15 @@ function renderSyncPills(d) {
   window.__tickInt = setInterval(tick, 1000);
 }
 
-function renderSync(prefix, sync, delayNote) {
+function renderSourceSync(prefix, sync, delayNote) {
   const el = $('#sub-' + prefix);
   if (!sync || !sync.last_run_ts) { el.textContent = delayNote || '—'; return; }
   const last = new Date(sync.last_run_ts * 1000);
   const status = sync.status === 'ok' ? '✓' : '⚠ ' + (sync.error_msg || '');
-  el.textContent = `${status} 마지막 수집: ${last.toLocaleString()} · ${delayNote || ''}`;
+  el.textContent = `${status} 마지막 수집: ${last.toLocaleString('ko-KR')} · ${delayNote || ''}`;
 }
 
 let ranges = { 'chart-nano': 'day', 'chart-openai': 'day' };
-
 function bindSegs(segId, canvasId, daily, color) {
   const seg = $('#' + segId);
   seg.querySelectorAll('button').forEach(btn => {
@@ -242,13 +387,15 @@ async function refresh() {
   try {
     const d = await fetchData();
     lastData = d;
+    const fx = d.approx_krw_per_usd || 1450;
+    $('#fx-rate').textContent = fx.toLocaleString();
+
     renderSyncPills(d);
+    setHeadline(d.totals_combined, fx);
 
-    const nano = d.sources.nanobanana;
-    const oa = d.sources.openai;
-
-    renderKPI('nano', nano.totals);
-    renderKPI('oa',   oa.totals);
+    const nano = d.sources.nanobanana, oa = d.sources.openai;
+    setKpi('nano', nano.totals, fx);
+    setKpi('oa',   oa.totals,   fx);
 
     renderChart('chart-nano',   nano.daily, ranges['chart-nano'],   NANO_COLOR);
     renderChart('chart-openai', oa.daily,   ranges['chart-openai'], GPT_COLOR);
@@ -256,8 +403,8 @@ async function refresh() {
     renderBreakdown('bd-nano',   nano.category_breakdown);
     renderBreakdown('bd-openai', oa.category_breakdown);
 
-    renderSync('nano',   nano.sync,   nano.delay_note);
-    renderSync('openai', oa.sync,     oa.delay_note);
+    renderSourceSync('nano',   nano.sync,   nano.delay_note);
+    renderSourceSync('openai', oa.sync,     oa.delay_note);
 
     bindSegs('seg-nano',   'chart-nano',   nano.daily, NANO_COLOR);
     bindSegs('seg-openai', 'chart-openai', oa.daily,   GPT_COLOR);
