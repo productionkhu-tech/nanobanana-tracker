@@ -3,114 +3,161 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>API Cost Dashboard</title>
+<title>API Cost Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
 <style>
   :root{
-    --bg:#fafbfc; --surface:#ffffff; --surface-2:#f4f6f8;
+    --bg:#f6f7f9; --surface:#ffffff; --surface-2:#f0f2f5;
     --line:#e3e6eb; --line-2:#eef0f3;
     --text:#0f1419; --muted:#5b6473; --dim:#8b94a3;
-    --good:#0e9f6e; --warn:#d97706; --bad:#dc2626;
-    --accent:#0a72ff;
-    --nano:#7c3aed; --gpt:#0e9f6e;
-    --pos:#dc2626; --neg:#0e9f6e;
+    --accent:#ea580c;          /* primary big numbers */
+    --accent-2:#0a72ff;
+    --good:#10a37f; --warn:#d97706; --bad:#dc2626;
+    --nano:#7c3aed; --nano-soft:#f3eeff;
+    --gpt:#10a37f;  --gpt-soft:#dcf6e8;
+
+    --sans:'Inter',-apple-system,'Segoe UI',Roboto,'Apple SD Gothic Neo','Pretendard','Malgun Gothic',sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;background:var(--bg);color:var(--text);
-    font:14px/1.5 -apple-system,'Segoe UI',Roboto,Inter,'Apple SD Gothic Neo','Pretendard','Malgun Gothic',sans-serif;
-    -webkit-font-smoothing:antialiased;font-feature-settings:'tnum' 1}
+  html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 var(--sans);
+    -webkit-font-smoothing:antialiased;font-feature-settings:'tnum' 1, 'cv11' 1}
 
-  /* ===== HEADER ===== */
-  header{padding:18px 32px;border-bottom:1px solid var(--line);background:var(--surface);
-    display:flex;align-items:center;gap:18px}
-  header .brand{display:flex;align-items:baseline;gap:10px}
-  header h1{font-size:14px;margin:0;font-weight:600;letter-spacing:-.005em;color:var(--text)}
-  header .badge{font-size:10px;padding:2px 7px;border-radius:4px;background:#e0ecff;
-    color:#0a72ff;letter-spacing:.04em;font-weight:600;text-transform:uppercase}
-  header .grow{flex:1}
-  header .meta{display:flex;gap:8px;font-size:12px;color:var(--muted);align-items:center}
-  .pill{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:6px;
-    background:var(--surface-2);font-size:12px;color:var(--muted);border:1px solid var(--line-2)}
-  .pill .dot{width:6px;height:6px;border-radius:50%;background:var(--good)}
-  .pill.warn .dot{background:var(--warn)}
-  .pill.bad  .dot{background:var(--bad)}
+  /* ===== LAYOUT ===== */
+  .app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+  @media (max-width:900px){.app{grid-template-columns:1fr}.sidebar{display:none}}
 
-  main{padding:24px 32px 80px;max-width:1480px;margin:0 auto}
+  .sidebar{background:var(--surface);border-right:1px solid var(--line);
+    padding:22px 0;position:sticky;top:0;height:100vh;overflow-y:auto}
+  .sidebar .brand{padding:0 22px 22px;display:flex;align-items:center;gap:10px;
+    border-bottom:1px solid var(--line);margin-bottom:16px}
+  .sidebar .brand .logo{width:28px;height:28px;border-radius:7px;
+    background:linear-gradient(135deg,#ea580c,#dc2626);
+    display:flex;align-items:center;justify-content:center;color:#fff;
+    font-family:var(--mono);font-weight:700;font-size:13px}
+  .sidebar .brand h1{font-size:14px;margin:0;font-weight:600;letter-spacing:-.005em;font-family:var(--mono)}
+  .sidebar .brand .sub{font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:1px}
+
+  .nav{padding:0 12px}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;
+    cursor:pointer;color:var(--muted);font-family:var(--mono);font-size:13px;
+    user-select:none;transition:all .12s}
+  .nav-item:hover{background:var(--surface-2);color:var(--text)}
+  .nav-item.on{background:#fff5ed;color:var(--accent);font-weight:500}
+  .nav-item.on .chev{color:var(--accent)}
+  .nav-item .chev{color:var(--dim);font-family:var(--mono);width:10px}
+
+  .sidebar .footer{position:absolute;bottom:18px;left:0;right:0;padding:0 22px;
+    color:var(--dim);font-size:10.5px;font-family:var(--mono);line-height:1.55}
+  .sidebar .footer a{color:var(--dim);text-decoration:none}
+  .sidebar .footer a:hover{color:var(--accent)}
+
+  /* ===== MAIN ===== */
+  main{padding:28px 36px 80px;min-width:0}
+  .page-head{margin-bottom:18px;display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  .page-head h2{font-size:22px;margin:0;font-weight:700;letter-spacing:-.02em}
+  .page-head .pageinfo{color:var(--muted);font-size:12px;font-family:var(--mono)}
+  .page-head .status{display:inline-flex;align-items:center;gap:6px;
+    padding:5px 11px;border-radius:6px;background:var(--surface);
+    border:1px solid var(--line);font-size:12px;color:var(--muted);font-family:var(--mono)}
+  .status .dot{width:6px;height:6px;border-radius:50%;background:var(--good)}
+  .status.warn .dot{background:var(--warn)}
+  .status.bad  .dot{background:var(--bad)}
+
+  .tab{display:none}
+  .tab.on{display:block}
 
   /* ===== HEADLINE ===== */
   .headline{background:var(--surface);border:1px solid var(--line);border-radius:14px;
-    padding:24px 28px;margin-bottom:18px}
-  .hl-top{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;margin-bottom:18px}
-  .hl-top .label{color:var(--muted);font-size:12px;letter-spacing:.04em;font-weight:500}
-  .hl-top .big{font-size:44px;font-weight:700;letter-spacing:-.025em;line-height:1}
-  .hl-top .krw{color:var(--muted);font-size:18px;font-weight:500}
-  .hl-top .change{margin-left:auto;font-size:13px;color:var(--muted)}
-  .hl-top .change b{color:var(--text);font-weight:600}
+    padding:26px 30px;margin-bottom:18px}
+  .hl-row1{display:flex;align-items:flex-start;gap:24px;flex-wrap:wrap;margin-bottom:22px}
+  .hl-row1 .label{color:var(--muted);font-size:12px;letter-spacing:.04em;
+    font-family:var(--mono);text-transform:uppercase;margin-bottom:6px}
+  .hl-row1 .big{font-size:48px;font-weight:700;letter-spacing:-.025em;line-height:1;color:var(--accent)}
+  .hl-row1 .krw{color:var(--muted);font-size:18px;font-weight:500;margin-left:14px}
+  .hl-row1 .delta-block{margin-left:auto;text-align:right}
+  .hl-row1 .delta-block .label{margin-bottom:4px;text-align:right}
+  .hl-row1 .delta-block .v{font-size:18px;font-weight:600}
+  .hl-row1 .delta-block .v.pos{color:var(--bad)}
+  .hl-row1 .delta-block .v.neg{color:var(--good)}
 
   .hl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;
-    border-top:1px solid var(--line);padding-top:16px}
-  @media (max-width:880px){.hl-grid{grid-template-columns:repeat(2,1fr);gap:18px}}
-  .hl-cell{padding:0 22px;border-right:1px solid var(--line)}
+    border-top:1px solid var(--line);padding-top:18px}
+  @media (max-width:780px){.hl-grid{grid-template-columns:repeat(2,1fr);gap:18px;padding-top:18px}}
+  .hl-cell{padding:0 24px;border-right:1px solid var(--line)}
   .hl-cell:first-child{padding-left:0}
   .hl-cell:last-child{border-right:0;padding-right:0}
-  .hl-cell .l{color:var(--muted);font-size:11px;letter-spacing:.04em;font-weight:500;text-transform:uppercase}
-  .hl-cell .v{font-size:22px;font-weight:600;margin-top:4px;letter-spacing:-.01em}
+  @media (max-width:780px){.hl-cell{border-right:0;padding:0}}
+  .hl-cell .l{color:var(--muted);font-size:11px;letter-spacing:.04em;
+    font-family:var(--mono);text-transform:uppercase}
+  .hl-cell .v{font-size:24px;font-weight:700;margin-top:4px;letter-spacing:-.015em}
   .hl-cell .k{color:var(--muted);font-size:12px;font-weight:500;margin-top:1px}
-  .hl-cell .d{color:var(--muted);font-size:11.5px;margin-top:4px}
-  .hl-cell .d.pos{color:var(--pos)}
-  .hl-cell .d.neg{color:var(--neg)}
+  .hl-cell .d{color:var(--muted);font-size:11.5px;margin-top:4px;font-family:var(--mono)}
+  .hl-cell .d.pos{color:var(--bad)}
+  .hl-cell .d.neg{color:var(--good)}
 
-  /* ===== SOURCE LAYOUT ===== */
-  .grid.sources{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  @media (max-width:1100px){.grid.sources{grid-template-columns:1fr}}
+  /* ===== CARDS ===== */
+  .row{display:grid;gap:18px;margin-top:18px}
+  .row.two{grid-template-columns:1fr 1fr}
+  .row.three{grid-template-columns:1fr 1fr 1fr}
+  @media (max-width:1100px){.row.two,.row.three{grid-template-columns:1fr}}
+
   .card{background:var(--surface);border:1px solid var(--line);border-radius:14px}
-
-  .card-head{padding:18px 22px 0;display:flex;align-items:center;gap:10px}
-  .card-head h2{margin:0;font-size:15px;font-weight:600;letter-spacing:-.005em}
+  .card-head{padding:18px 22px;display:flex;align-items:center;gap:10px;
+    border-bottom:1px solid var(--line-2)}
+  .card-head h3{margin:0;font-size:14px;font-weight:600;font-family:var(--mono)}
   .card-head .tag{font-size:10.5px;padding:2px 7px;border-radius:4px;font-weight:600;
-    text-transform:uppercase;letter-spacing:.04em}
-  .card-head .tag.nano{background:#f3eeff;color:var(--nano)}
-  .card-head .tag.gpt{background:#dcf6e8;color:var(--gpt)}
-  .card-sub{padding:4px 22px 14px;color:var(--muted);font-size:12px}
+    text-transform:uppercase;letter-spacing:.04em;font-family:var(--mono)}
+  .card-head .tag.nano{background:var(--nano-soft);color:var(--nano)}
+  .card-head .tag.gpt{background:var(--gpt-soft);color:var(--gpt)}
+  .card-body{padding:18px 22px}
 
-  .num-strip{padding:0 22px 16px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;
+    background:var(--surface-2);margin-left:auto}
+  .seg button{background:transparent;border:0;color:var(--muted);
+    padding:5px 11px;font-size:12px;cursor:pointer;font-weight:500;font-family:var(--mono)}
+  .seg button.on{background:var(--surface);color:var(--text);box-shadow:0 1px 0 var(--line)}
+
+  .num-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
   .num{}
   .num .l{color:var(--muted);font-size:10.5px;letter-spacing:.04em;
-    font-weight:500;text-transform:uppercase}
-  .num .v{font-size:24px;font-weight:600;margin-top:3px;letter-spacing:-.015em}
+    font-family:var(--mono);text-transform:uppercase}
+  .num .v{font-size:24px;font-weight:700;margin-top:3px;letter-spacing:-.015em;color:var(--accent)}
   .num .k{color:var(--muted);font-size:11.5px;margin-top:1px}
-  .num .d{font-size:11.5px;margin-top:3px;color:var(--muted)}
-  .num .d.pos{color:var(--pos)}
-  .num .d.neg{color:var(--neg)}
+  .num .d{font-size:11.5px;margin-top:3px;color:var(--muted);font-family:var(--mono)}
+  .num .d.pos{color:var(--bad)}
+  .num .d.neg{color:var(--good)}
 
-  /* ===== CHART AREA ===== */
-  .chart-section{padding:0 22px 18px;border-top:1px solid var(--line-2)}
-  .chart-bar{display:flex;align-items:center;padding:14px 0 8px;gap:14px;flex-wrap:wrap}
-  .chart-bar .title{font-size:12.5px;color:var(--muted);font-weight:500}
-  .seg{margin-left:auto;display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface-2)}
-  .seg button{background:transparent;border:0;color:var(--muted);
-    padding:6px 12px;font-size:12px;cursor:pointer;font-weight:500;letter-spacing:-.005em}
-  .seg button.on{background:var(--surface);color:var(--text);box-shadow:0 1px 0 var(--line)}
   .chart-wrap{position:relative;height:240px}
+  .chart-wrap.tall{height:280px}
 
-  /* ===== TABLE ===== */
-  .table-section{border-top:1px solid var(--line-2);padding:14px 22px 18px}
-  .table-bar{display:flex;align-items:center;padding-bottom:8px;gap:8px}
-  .table-bar .title{font-size:12.5px;color:var(--muted);font-weight:500}
   table.cat{width:100%;border-collapse:collapse;font-size:13px}
   table.cat th{text-align:left;color:var(--dim);font-size:10.5px;
-    letter-spacing:.04em;font-weight:500;text-transform:uppercase;
-    padding:8px 10px;border-bottom:1px solid var(--line-2);user-select:none}
+    letter-spacing:.04em;font-weight:500;font-family:var(--mono);
+    text-transform:uppercase;padding:8px 10px;border-bottom:1px solid var(--line-2)}
   table.cat th.num,table.cat td.num{text-align:right;font-variant-numeric:tabular-nums}
-  table.cat td{padding:10px;border-bottom:1px solid var(--line-2);color:var(--text);vertical-align:middle}
+  table.cat td{padding:11px 10px;border-bottom:1px solid var(--line-2);color:var(--text)}
   table.cat tr:last-child td{border-bottom:0}
   table.cat .name{font-weight:500}
-  table.cat .pct{color:var(--muted);font-size:11.5px;margin-left:6px}
-  .spark{display:inline-block;vertical-align:middle}
+  table.cat .pct{color:var(--muted);font-size:11.5px;margin-left:6px;font-family:var(--mono)}
+  table.cat .dot-c{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:middle}
+  .spark{vertical-align:middle}
 
-  /* ===== NOTES ===== */
-  .notes{margin-top:22px;background:var(--surface);border:1px solid var(--line);
-    border-radius:12px;padding:16px 22px;color:var(--muted);font-size:12.5px;line-height:1.7}
+  .legend{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--muted);font-family:var(--mono)}
+  .legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle}
+
+  .donut-row{display:grid;grid-template-columns:200px 1fr;gap:24px;align-items:center}
+  @media (max-width:540px){.donut-row{grid-template-columns:1fr}}
+  .donut-list{display:flex;flex-direction:column;gap:10px}
+  .donut-list .row-i{display:flex;align-items:center;gap:10px;font-size:13px}
+  .donut-list .name{flex:1}
+  .donut-list .v{font-weight:600;font-variant-numeric:tabular-nums}
+  .donut-list .pct{color:var(--muted);font-size:11.5px;width:46px;text-align:right;font-family:var(--mono)}
+
+  .notes{color:var(--muted);font-size:12.5px;line-height:1.7}
   .notes b{color:var(--text)}
   .notes ul{margin:6px 0 0;padding-left:18px}
   .notes li{margin-bottom:3px}
@@ -118,90 +165,159 @@
 </head>
 <body>
 
-<header>
-  <div class="brand">
-    <h1>API Cost Dashboard</h1>
-    <span class="badge">Live</span>
-  </div>
-  <div class="grow"></div>
-  <div class="meta">
-    <span id="tickPill" class="pill"><span class="dot"></span><span id="tickText">로딩…</span></span>
-    <span id="genPill"  class="pill"><span class="dot"></span><span id="genText">—</span></span>
-  </div>
-</header>
+<div class="app">
 
-<main>
-  <!-- ===== HEADLINE ===== -->
-  <section class="headline">
-    <div class="hl-top">
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">¢</div>
       <div>
-        <div class="label">이번 달 누적 (NanoBanana + GPT Image 2)</div>
-        <div style="display:flex;align-items:baseline;gap:14px;margin-top:4px">
-          <span class="big" id="hl-month">$—</span>
-          <span class="krw" id="hl-month-krw">—</span>
-        </div>
-      </div>
-      <div class="change" id="hl-change">—</div>
-    </div>
-    <div class="hl-grid">
-      <div class="hl-cell">
-        <div class="l">오늘</div>
-        <div class="v" id="hl-today">$—</div>
-        <div class="k" id="hl-today-krw">—</div>
-        <div class="d" id="hl-today-d">—</div>
-      </div>
-      <div class="hl-cell">
-        <div class="l">최근 7일</div>
-        <div class="v" id="hl-week">$—</div>
-        <div class="k" id="hl-week-krw">—</div>
-        <div class="d" id="hl-week-d">—</div>
-      </div>
-      <div class="hl-cell">
-        <div class="l">월말 예상</div>
-        <div class="v" id="hl-projection">$—</div>
-        <div class="k" id="hl-projection-krw">—</div>
-        <div class="d">현재 추세 기준</div>
-      </div>
-      <div class="hl-cell">
-        <div class="l">올해 누적</div>
-        <div class="v" id="hl-year">$—</div>
-        <div class="k" id="hl-year-krw">—</div>
-        <div class="d">최근 365일</div>
+        <h1>cost-tracker</h1>
+        <div class="sub">nanobanana · gpt-image-2</div>
       </div>
     </div>
-  </section>
+    <nav class="nav" id="nav">
+      <div class="nav-item on" data-tab="overview"><span class="chev">›</span>overview</div>
+      <div class="nav-item"     data-tab="nano"><span class="chev">·</span>nanobanana</div>
+      <div class="nav-item"     data-tab="openai"><span class="chev">·</span>gpt image 2</div>
+      <div class="nav-item"     data-tab="history"><span class="chev">·</span>history</div>
+      <div class="nav-item"     data-tab="about"><span class="chev">·</span>about</div>
+    </nav>
+    <div class="footer">
+      <div>updated <span id="age">—</span></div>
+      <div style="margin-top:6px"><a href="https://github.com/productionkhu-tech/nanobanana-tracker" target="_blank">source ↗</a></div>
+    </div>
+  </aside>
 
-  <!-- ===== SOURCES ===== -->
-  <div class="grid sources">
+  <!-- ===== MAIN ===== -->
+  <main>
 
-    <section class="card">
-      <div class="card-head">
-        <span class="tag nano">NanoBanana</span>
-        <h2>Gemini API + Vertex AI</h2>
+    <!-- ===== TAB: Overview ===== -->
+    <section class="tab on" id="tab-overview">
+      <div class="page-head">
+        <div>
+          <h2>Overview</h2>
+          <div class="pageinfo">두 소스 합산 · 실시간 비용 추적</div>
+        </div>
+        <span id="statusPill" class="status"><span class="dot"></span><span id="statusText">정상</span></span>
       </div>
-      <div class="card-sub" id="sub-nano">—</div>
-      <div class="num-strip">
-        <div class="num">
-          <div class="l">오늘</div>
-          <div class="v" id="nano-today">$—</div>
-          <div class="k" id="nano-today-krw">—</div>
-          <div class="d" id="nano-today-d">—</div>
+
+      <section class="headline">
+        <div class="hl-row1">
+          <div>
+            <div class="label">이번 달 누적</div>
+            <div>
+              <span class="big" id="hl-month">$—</span>
+              <span class="krw" id="hl-month-krw">—</span>
+            </div>
+          </div>
+          <div class="delta-block">
+            <div class="label">지난달 동기간 대비</div>
+            <div class="v" id="hl-mom">—</div>
+          </div>
         </div>
-        <div class="num">
-          <div class="l">이번 달</div>
-          <div class="v" id="nano-month">$—</div>
-          <div class="k" id="nano-month-krw">—</div>
-          <div class="d" id="nano-month-d">—</div>
+        <div class="hl-grid">
+          <div class="hl-cell">
+            <div class="l">today</div>
+            <div class="v" id="hl-today">$—</div>
+            <div class="k" id="hl-today-krw">—</div>
+            <div class="d" id="hl-today-d">—</div>
+          </div>
+          <div class="hl-cell">
+            <div class="l">last 7 days</div>
+            <div class="v" id="hl-week">$—</div>
+            <div class="k" id="hl-week-krw">—</div>
+            <div class="d">vs 지난 7일</div>
+          </div>
+          <div class="hl-cell">
+            <div class="l">end-of-month proj.</div>
+            <div class="v" id="hl-projection">$—</div>
+            <div class="k" id="hl-projection-krw">—</div>
+            <div class="d">현재 추세 기준</div>
+          </div>
+          <div class="hl-cell">
+            <div class="l">last 365 days</div>
+            <div class="v" id="hl-year">$—</div>
+            <div class="k" id="hl-year-krw">—</div>
+            <div class="d">12개월 누적</div>
+          </div>
         </div>
-        <div class="num">
-          <div class="l">올해</div>
-          <div class="v" id="nano-year">$—</div>
-          <div class="k" id="nano-year-krw">—</div>
-        </div>
+      </section>
+
+      <div class="row two">
+        <section class="card">
+          <div class="card-head">
+            <h3>일별 합산 비용</h3>
+            <div class="seg" id="seg-overview">
+              <button data-r="7" class="on">7일</button>
+              <button data-r="30">30일</button>
+              <button data-r="90">90일</button>
+              <button data-r="365">12개월</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="legend" style="margin-bottom:8px">
+              <span><span class="sw" style="background:var(--nano)"></span>NanoBanana</span>
+              <span><span class="sw" style="background:var(--gpt)"></span>GPT Image 2</span>
+            </div>
+            <div class="chart-wrap"><canvas id="chart-overview"></canvas></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h3>소스별 분포 (이번 달)</h3></div>
+          <div class="card-body">
+            <div class="donut-row">
+              <div class="chart-wrap" style="height:200px"><canvas id="chart-source-share"></canvas></div>
+              <div class="donut-list" id="source-share-list"></div>
+            </div>
+          </div>
+        </section>
       </div>
-      <div class="chart-section">
-        <div class="chart-bar">
-          <span class="title">일별 비용</span>
+
+      <div class="row two" style="margin-top:18px">
+        <section class="card">
+          <div class="card-head"><span class="tag nano">NanoBanana</span><h3>Gemini API + Vertex AI</h3></div>
+          <div class="card-body">
+            <div class="num-strip">
+              <div class="num"><div class="l">today</div><div class="v" id="ov-nano-today">$—</div><div class="k" id="ov-nano-today-krw">—</div></div>
+              <div class="num"><div class="l">this month</div><div class="v" id="ov-nano-month">$—</div><div class="k" id="ov-nano-month-krw">—</div></div>
+              <div class="num"><div class="l">365d total</div><div class="v" id="ov-nano-year">$—</div><div class="k" id="ov-nano-year-krw">—</div></div>
+            </div>
+          </div>
+        </section>
+        <section class="card">
+          <div class="card-head"><span class="tag gpt">GPT Image 2</span><h3>OpenAI Image API</h3></div>
+          <div class="card-body">
+            <div class="num-strip">
+              <div class="num"><div class="l">today</div><div class="v" id="ov-oa-today">$—</div><div class="k" id="ov-oa-today-krw">—</div></div>
+              <div class="num"><div class="l">this month</div><div class="v" id="ov-oa-month">$—</div><div class="k" id="ov-oa-month-krw">—</div></div>
+              <div class="num"><div class="l">365d total</div><div class="v" id="ov-oa-year">$—</div><div class="k" id="ov-oa-year-krw">—</div></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ===== TAB: NanoBanana ===== -->
+    <section class="tab" id="tab-nano">
+      <div class="page-head">
+        <div><h2>NanoBanana</h2><div class="pageinfo">Gemini API + Vertex AI · GCP 빌링 export 기반</div></div>
+      </div>
+      <section class="card">
+        <div class="card-head"><span class="tag nano">NanoBanana</span><h3>요약</h3></div>
+        <div class="card-body">
+          <div class="num-strip">
+            <div class="num"><div class="l">today</div><div class="v" id="n-today">$—</div><div class="k" id="n-today-krw">—</div><div class="d" id="n-today-d">—</div></div>
+            <div class="num"><div class="l">this month</div><div class="v" id="n-month">$—</div><div class="k" id="n-month-krw">—</div><div class="d" id="n-month-d">—</div></div>
+            <div class="num"><div class="l">365d total</div><div class="v" id="n-year">$—</div><div class="k" id="n-year-krw">—</div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:18px">
+        <div class="card-head">
+          <h3>일별 비용</h3>
           <div class="seg" id="seg-nano">
             <button data-r="7" class="on">7일</button>
             <button data-r="30">30일</button>
@@ -209,51 +325,39 @@
             <button data-r="365">12개월</button>
           </div>
         </div>
-        <div class="chart-wrap"><canvas id="chart-nano"></canvas></div>
-      </div>
-      <div class="table-section">
-        <div class="table-bar"><span class="title">서비스별 사용 (정렬: 누적 내림차순)</span></div>
-        <table class="cat">
-          <thead><tr>
-            <th>서비스</th>
-            <th class="num">오늘</th>
-            <th class="num">이번 달</th>
-            <th class="num">누적</th>
-            <th class="num">최근 30일 추이</th>
-          </tr></thead>
-          <tbody id="tbl-nano"></tbody>
-        </table>
-      </div>
+        <div class="card-body"><div class="chart-wrap"><canvas id="chart-nano"></canvas></div></div>
+      </section>
+
+      <section class="card" style="margin-top:18px">
+        <div class="card-head"><h3>서비스별 사용 (정렬: 누적 내림차순)</h3></div>
+        <div class="card-body">
+          <table class="cat">
+            <thead><tr><th>서비스</th><th class="num">today</th><th class="num">this month</th><th class="num">total</th><th class="num">last 30d</th></tr></thead>
+            <tbody id="tbl-nano"></tbody>
+          </table>
+        </div>
+      </section>
     </section>
 
-    <section class="card">
-      <div class="card-head">
-        <span class="tag gpt">GPT Image 2</span>
-        <h2>OpenAI Image API</h2>
+    <!-- ===== TAB: GPT Image 2 ===== -->
+    <section class="tab" id="tab-openai">
+      <div class="page-head">
+        <div><h2>GPT Image 2</h2><div class="pageinfo">OpenAI Admin API 기반 · 모델 단위로 묶어서 표시</div></div>
       </div>
-      <div class="card-sub" id="sub-openai">—</div>
-      <div class="num-strip">
-        <div class="num">
-          <div class="l">오늘</div>
-          <div class="v" id="oa-today">$—</div>
-          <div class="k" id="oa-today-krw">—</div>
-          <div class="d" id="oa-today-d">—</div>
+      <section class="card">
+        <div class="card-head"><span class="tag gpt">GPT Image 2</span><h3>요약</h3></div>
+        <div class="card-body">
+          <div class="num-strip">
+            <div class="num"><div class="l">today</div><div class="v" id="g-today">$—</div><div class="k" id="g-today-krw">—</div><div class="d" id="g-today-d">—</div></div>
+            <div class="num"><div class="l">this month</div><div class="v" id="g-month">$—</div><div class="k" id="g-month-krw">—</div><div class="d" id="g-month-d">—</div></div>
+            <div class="num"><div class="l">365d total</div><div class="v" id="g-year">$—</div><div class="k" id="g-year-krw">—</div></div>
+          </div>
         </div>
-        <div class="num">
-          <div class="l">이번 달</div>
-          <div class="v" id="oa-month">$—</div>
-          <div class="k" id="oa-month-krw">—</div>
-          <div class="d" id="oa-month-d">—</div>
-        </div>
-        <div class="num">
-          <div class="l">올해</div>
-          <div class="v" id="oa-year">$—</div>
-          <div class="k" id="oa-year-krw">—</div>
-        </div>
-      </div>
-      <div class="chart-section">
-        <div class="chart-bar">
-          <span class="title">일별 비용</span>
+      </section>
+
+      <section class="card" style="margin-top:18px">
+        <div class="card-head">
+          <h3>일별 비용</h3>
           <div class="seg" id="seg-openai">
             <button data-r="7" class="on">7일</button>
             <button data-r="30">30일</button>
@@ -261,74 +365,178 @@
             <button data-r="365">12개월</button>
           </div>
         </div>
-        <div class="chart-wrap"><canvas id="chart-openai"></canvas></div>
-      </div>
-      <div class="table-section">
-        <div class="table-bar"><span class="title">모델별 사용 (정렬: 누적 내림차순)</span></div>
-        <table class="cat">
-          <thead><tr>
-            <th>모델</th>
-            <th class="num">오늘</th>
-            <th class="num">이번 달</th>
-            <th class="num">누적</th>
-            <th class="num">최근 30일 추이</th>
-          </tr></thead>
-          <tbody id="tbl-openai"></tbody>
-        </table>
-      </div>
+        <div class="card-body"><div class="chart-wrap"><canvas id="chart-openai"></canvas></div></div>
+      </section>
+
+      <section class="card" style="margin-top:18px">
+        <div class="card-head"><h3>모델별 사용 (정렬: 누적 내림차순)</h3></div>
+        <div class="card-body">
+          <table class="cat">
+            <thead><tr><th>모델</th><th class="num">today</th><th class="num">this month</th><th class="num">total</th><th class="num">last 30d</th></tr></thead>
+            <tbody id="tbl-openai"></tbody>
+          </table>
+        </div>
+      </section>
     </section>
 
-  </div>
+    <!-- ===== TAB: History ===== -->
+    <section class="tab" id="tab-history">
+      <div class="page-head"><div><h2>History</h2><div class="pageinfo">월간 추세 · 12개월</div></div></div>
+      <section class="card">
+        <div class="card-head"><h3>월별 비용 (소스별 누적)</h3></div>
+        <div class="card-body">
+          <div class="legend" style="margin-bottom:8px">
+            <span><span class="sw" style="background:var(--nano)"></span>NanoBanana</span>
+            <span><span class="sw" style="background:var(--gpt)"></span>GPT Image 2</span>
+          </div>
+          <div class="chart-wrap tall"><canvas id="chart-monthly"></canvas></div>
+        </div>
+      </section>
+      <section class="card" style="margin-top:18px">
+        <div class="card-head"><h3>월별 합계 표</h3></div>
+        <div class="card-body">
+          <table class="cat">
+            <thead><tr><th>월</th><th class="num">NanoBanana</th><th class="num">GPT Image 2</th><th class="num">합계</th></tr></thead>
+            <tbody id="tbl-monthly"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
 
-  <section class="notes">
-    <b>읽는 법</b>
-    <ul>
-      <li>모든 비용은 <b>USD 정가(list)</b> 기준 — 실제 호출이 발생시킨 사용량 측정값입니다 (Free Tier 차감 전).</li>
-      <li>원화는 1 USD ≈ <span id="fx-rate">1,450</span>원으로 환산한 추정값. GCP 빌링 화면 KRW 청구액과는 환율·세금으로 다를 수 있음.</li>
-      <li><b>오늘</b> 수치는 데이터 지연으로 마감까지 점진적으로 확정됩니다 — GCP 1~24h, OpenAI 30~60분 지연.</li>
-      <li>수집은 GitHub Actions cron이 5분 주기로 자동 실행 (사용자 PC 무관).</li>
-    </ul>
-  </section>
-</main>
+    <!-- ===== TAB: About ===== -->
+    <section class="tab" id="tab-about">
+      <div class="page-head"><div><h2>About</h2><div class="pageinfo">읽는 법 · 기술 정보</div></div></div>
+      <section class="card"><div class="card-body">
+        <div class="notes">
+          <b>비용 측정</b>
+          <ul>
+            <li>모든 비용은 <b>USD 정가(list)</b> 기준 — 실제 호출이 발생시킨 사용량 측정값. <b>Free Tier 차감 전</b> 금액입니다.</li>
+            <li>원화는 1 USD ≈ <span id="fx-rate">1,450</span>원으로 환산한 추정값. 실제 GCP 청구 KRW와는 환율·세금으로 다를 수 있습니다.</li>
+          </ul>
+          <b style="display:block;margin-top:12px">데이터 지연</b>
+          <ul>
+            <li><b>GCP 빌링 export</b>: 1~24시간 지연. 오늘 호출은 점진적으로 합산됩니다.</li>
+            <li><b>OpenAI Admin API</b>: 30~60분 지연. 막 호출한 건은 곧 반영됩니다.</li>
+          </ul>
+          <b style="display:block;margin-top:12px">자동화</b>
+          <ul>
+            <li>GitHub Actions cron이 5분 주기로 자동 실행 (사용자 PC 무관, 24/7 동작).</li>
+            <li>두 소스 수집은 한 번의 실행에서 순차 진행되며, 화면에 표시되는 시각은 통합됩니다.</li>
+            <li>소스: <a href="https://github.com/productionkhu-tech/nanobanana-tracker" target="_blank">github.com/productionkhu-tech/nanobanana-tracker</a></li>
+          </ul>
+        </div>
+      </div></section>
+    </section>
+
+  </main>
+</div>
 
 <script>
-const NANO_COLOR = '#7c3aed', NANO_FILL = 'rgba(124,58,237,.10)';
-const GPT_COLOR  = '#0e9f6e', GPT_FILL  = 'rgba(14,159,110,.10)';
+const NANO = '#7c3aed', NANO_FILL = 'rgba(124,58,237,.10)';
+const GPT  = '#10a37f', GPT_FILL  = 'rgba(16,163,127,.10)';
+const ACCENT = '#ea580c';
 const REFETCH_MS = 60_000;
 
-const $ = (s) => document.querySelector(s);
+const $  = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
 const usd = (n) => '$' + (Math.round((n||0)*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const krw = (n, fx) => '₩' + Math.round((n||0)*fx).toLocaleString('ko-KR');
 
 let charts = {};
 let lastData = null;
-let ranges = { 'chart-nano': 7, 'chart-openai': 7 };
-
-async function fetchData() {
-  const r = await fetch('data.json?t=' + Date.now(), { cache: 'no-store' });
-  if (!r.ok) throw new Error('fetch ' + r.status);
-  return await r.json();
-}
+let ranges = { 'chart-overview': 7, 'chart-nano': 7, 'chart-openai': 7 };
 
 function fmtDelta(cur, prev) {
-  if (prev === 0 && cur === 0) return {text: '— 변화 없음', cls: ''};
-  if (prev === 0) return {text: '+' + usd(cur) + ' (신규)', cls: 'pos'};
+  if (prev === 0 && cur === 0) return {text:'변화 없음', cls:''};
+  if (prev === 0) return {text:'+' + usd(cur) + ' (신규)', cls:'pos'};
   const d = cur - prev;
   const pct = (d / Math.max(0.01, Math.abs(prev))) * 100;
   const sign = d > 0 ? '+' : '';
-  return {
-    text: `${sign}${usd(d)} (${sign}${pct.toFixed(0)}%)`,
-    cls: Math.abs(d) < 0.01 ? '' : (d > 0 ? 'pos' : 'neg'),
-  };
+  const cls = Math.abs(d) < 0.01 ? '' : (d > 0 ? 'pos' : 'neg');
+  return {text:`${sign}${usd(d)} (${sign}${pct.toFixed(0)}%)`, cls};
 }
-
-function setNum(el, v, klass) {
-  el.textContent = v.text;
+function setDelta(el, dl) {
+  el.textContent = dl.text;
   el.classList.remove('pos','neg');
-  if (klass) el.classList.add(klass);
+  if (dl.cls) el.classList.add(dl.cls);
 }
 
-function renderHeadline(d, fx) {
+function lineChart(canvasId, daily, days, datasets) {
+  const series = daily.slice(-days);
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  if (charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId] = new Chart(ctx, {
+    type: 'line',
+    data: { labels: series.map(s => s.date.slice(5)), datasets: datasets(series) },
+    options: {
+      maintainAspectRatio: false,
+      animation: { duration: 250 },
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: (ctx) => ctx.dataset.label + ': ' + usd(ctx.parsed.y) +
+            ' · 약 ' + krw(ctx.parsed.y, lastData.approx_krw_per_usd) },
+          backgroundColor: '#0f1419', titleColor: '#fff', bodyColor: '#fff',
+          padding: 10, displayColors: true, boxPadding: 4,
+        },
+      },
+      scales: {
+        x: { ticks:{color:'#5b6473',maxRotation:0,autoSkip:true,maxTicksLimit:8,font:{size:11}},
+             grid:{display:false}, border:{display:false} },
+        y: { ticks:{color:'#5b6473',callback:(v)=>usd(v),font:{size:11}},
+             grid:{color:'#eef0f3'}, border:{display:false}, beginAtZero:true },
+      },
+    },
+  });
+}
+
+function sparkSvg(values, color) {
+  if (!values.length) return '';
+  const w=100,h=22, max=Math.max(...values, 0.0001);
+  const dx = w / Math.max(1, values.length-1);
+  const pts = values.map((v,i) => `${(i*dx).toFixed(1)},${(h - (v/max)*(h-2) - 1).toFixed(1)}`).join(' ');
+  const area = `M0,${h} L${pts.split(' ').join(' L')} L${w},${h} Z`;
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <path d="${area}" fill="${color}22"/>
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`;
+}
+
+function renderTable(elId, items, color) {
+  const el = $('#' + elId); el.innerHTML = '';
+  const total = items.reduce((s, it) => s + it.total, 0);
+  if (!items.length || total === 0) {
+    el.innerHTML = `<tr><td colspan="5" style="color:var(--dim);text-align:center;padding:18px">데이터 없음</td></tr>`;
+    return;
+  }
+  for (const it of items) {
+    const pct = total > 0 ? (it.total / total) * 100 : 0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="dot-c" style="background:${color}"></span><span class="name">${it.category}</span><span class="pct">${pct.toFixed(1)}%</span></td>
+      <td class="num">${usd(it.today)}</td>
+      <td class="num">${usd(it.month)}</td>
+      <td class="num"><b>${usd(it.total)}</b></td>
+      <td class="num">${sparkSvg(it.sparkline, color)}</td>`;
+    el.appendChild(tr);
+  }
+}
+
+function donut(canvasId, items, total) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  if (charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId] = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels: items.map(i=>i.label), datasets:[{ data: items.map(i=>i.value), backgroundColor: items.map(i=>i.color), borderColor: '#fff', borderWidth: 2 }] },
+    options: { maintainAspectRatio:false, cutout:'68%',
+      plugins: { legend:{display:false},
+        tooltip:{ callbacks:{ label: (c) => c.label + ': ' + usd(c.parsed) + ' (' + ((c.parsed/total)*100).toFixed(1) + '%)' } } } },
+  });
+}
+
+function renderOverview(d) {
+  const fx = d.approx_krw_per_usd || 1450;
   const c = d.totals_combined;
   $('#hl-month').textContent = usd(c.month.cost);
   $('#hl-month-krw').textContent = '· 약 ' + krw(c.month.cost, fx);
@@ -341,189 +549,186 @@ function renderHeadline(d, fx) {
   $('#hl-year').textContent = usd(c.year.cost);
   $('#hl-year-krw').textContent = '약 ' + krw(c.year.cost, fx);
 
-  const today_d = fmtDelta(c.today.cost, c.last_week_same_day.cost);
-  setNum($('#hl-today-d'), {text: today_d.text + ' vs 지난주 같은 요일'}, today_d.cls);
-  const week_d = fmtDelta(c.week.cost, c.last_week_same_day.cost * 7);
-  setNum($('#hl-week-d'), {text: '직전 7일 대비'}, '');
-  const month_d = fmtDelta(c.month.cost, c.last_month.cost);
-  $('#hl-change').innerHTML = `지난달 동일 기간 대비 <b class="${month_d.cls === 'pos' ? 'd pos' : month_d.cls === 'neg' ? 'd neg' : ''}">${month_d.text}</b>`;
+  // mom delta
+  const mom = fmtDelta(c.month.cost, c.last_month.cost);
+  const momEl = $('#hl-mom'); momEl.textContent = mom.text;
+  momEl.classList.remove('pos','neg'); if (mom.cls) momEl.classList.add(mom.cls);
+
+  // today vs same DoW last week
+  const td = fmtDelta(c.today.cost, c.last_week_same_day.cost);
+  setDelta($('#hl-today-d'), {text: td.text + ' vs 지난주', cls: td.cls});
+
+  // overview chart: stacked area combining nano + openai
+  lineChart('chart-overview', d.combined_daily, ranges['chart-overview'], (series) => [
+    { label:'NanoBanana', data: series.map(s=>s.nano), borderColor: NANO, backgroundColor: NANO_FILL,
+      borderWidth:2, pointRadius: series.length<=30?2:0, pointHoverRadius:4, fill:'origin', tension:.25, stack:'a' },
+    { label:'GPT Image 2', data: series.map(s=>s.gpt), borderColor: GPT, backgroundColor: GPT_FILL,
+      borderWidth:2, pointRadius: series.length<=30?2:0, pointHoverRadius:4, fill:'-1', tension:.25, stack:'a' },
+  ]);
+
+  // source share donut
+  const nMonth = d.sources.nanobanana.totals.month.cost;
+  const gMonth = d.sources.openai.totals.month.cost;
+  const totalMonth = nMonth + gMonth;
+  const items = [
+    { label:'NanoBanana',  value: nMonth, color: NANO },
+    { label:'GPT Image 2', value: gMonth, color: GPT  },
+  ];
+  donut('chart-source-share', items, Math.max(totalMonth, 0.0001));
+  const list = $('#source-share-list'); list.innerHTML = '';
+  for (const it of items) {
+    const pct = totalMonth > 0 ? (it.value/totalMonth)*100 : 0;
+    const div = document.createElement('div');
+    div.className = 'row-i';
+    div.innerHTML = `<span class="dot-c" style="background:${it.color}"></span><span class="name">${it.label}</span><span class="v">${usd(it.value)}</span><span class="pct">${pct.toFixed(0)}%</span>`;
+    list.appendChild(div);
+  }
+
+  // bottom mini cards (nano / openai)
+  const set = (p, t) => {
+    $('#'+p+'-today').textContent = usd(t.today.cost);
+    $('#'+p+'-today-krw').textContent = '약 ' + krw(t.today.cost, fx);
+    $('#'+p+'-month').textContent = usd(t.month.cost);
+    $('#'+p+'-month-krw').textContent = '약 ' + krw(t.month.cost, fx);
+    $('#'+p+'-year').textContent = usd(t.year.cost);
+    $('#'+p+'-year-krw').textContent = '약 ' + krw(t.year.cost, fx);
+  };
+  set('ov-nano', d.sources.nanobanana.totals);
+  set('ov-oa',   d.sources.openai.totals);
 }
 
-function renderSource(prefix, src, fx) {
+function renderSourceTab(prefix, src, color, fillColor, segId, chartId, tableId) {
+  const fx = lastData.approx_krw_per_usd || 1450;
   const t = src.totals;
-  $(`#${prefix}-today`).textContent = usd(t.today.cost);
-  $(`#${prefix}-today-krw`).textContent = '약 ' + krw(t.today.cost, fx);
-  $(`#${prefix}-month`).textContent = usd(t.month.cost);
-  $(`#${prefix}-month-krw`).textContent = '약 ' + krw(t.month.cost, fx);
-  $(`#${prefix}-year`).textContent = usd(t.year.cost);
-  $(`#${prefix}-year-krw`).textContent = '약 ' + krw(t.year.cost, fx);
+  $('#'+prefix+'-today').textContent = usd(t.today.cost);
+  $('#'+prefix+'-today-krw').textContent = '약 ' + krw(t.today.cost, fx);
+  $('#'+prefix+'-month').textContent = usd(t.month.cost);
+  $('#'+prefix+'-month-krw').textContent = '약 ' + krw(t.month.cost, fx);
+  $('#'+prefix+'-year').textContent = usd(t.year.cost);
+  $('#'+prefix+'-year-krw').textContent = '약 ' + krw(t.year.cost, fx);
 
-  const td = fmtDelta(t.today.cost, t.last_week_same_day.cost);
-  setNum($(`#${prefix}-today-d`), {text: td.text + ' vs 지난주 같은 요일'}, td.cls);
-  const md = fmtDelta(t.month.cost, t.last_month.cost);
-  setNum($(`#${prefix}-month-d`), {text: md.text + ' vs 지난달 전체'}, md.cls);
+  setDelta($('#'+prefix+'-today-d'),
+    {text: fmtDelta(t.today.cost, t.last_week_same_day.cost).text + ' vs 지난주',
+     cls: fmtDelta(t.today.cost, t.last_week_same_day.cost).cls});
+  setDelta($('#'+prefix+'-month-d'),
+    {text: fmtDelta(t.month.cost, t.last_month.cost).text + ' vs 지난달',
+     cls: fmtDelta(t.month.cost, t.last_month.cost).cls});
+
+  lineChart(chartId, src.daily, ranges[chartId], (series) => [{
+    label: src.primary_label, data: series.map(s=>s.cost),
+    borderColor: color, backgroundColor: fillColor,
+    borderWidth:2, pointRadius: series.length<=30?3:0, pointHoverRadius:5,
+    pointBackgroundColor:color, fill:'origin', tension:.25,
+  }]);
+  renderTable(tableId, src.category_table, color);
 }
 
-function trimSeries(daily, days) {
-  return daily.slice(-days);
-}
-
-function renderChart(canvasId, daily, days, color, fillColor) {
-  const series = trimSeries(daily, days);
-  const ctx = document.getElementById(canvasId).getContext('2d');
-  if (charts[canvasId]) charts[canvasId].destroy();
-  charts[canvasId] = new Chart(ctx, {
-    type: 'line',
+function renderHistory(d) {
+  const months = d.combined_monthly;
+  const ctx = document.getElementById('chart-monthly').getContext('2d');
+  if (charts['chart-monthly']) charts['chart-monthly'].destroy();
+  charts['chart-monthly'] = new Chart(ctx, {
+    type: 'bar',
     data: {
-      labels: series.map(s => s.date.slice(5)),
-      datasets: [{
-        data: series.map(s => s.cost),
-        borderColor: color,
-        backgroundColor: fillColor,
-        borderWidth: 2,
-        pointRadius: series.length <= 30 ? 3 : 0,
-        pointHoverRadius: 5,
-        pointBackgroundColor: color,
-        pointBorderColor: color,
-        fill: 'origin',
-        tension: 0.25,
-      }],
+      labels: months.map(m => m.month),
+      datasets: [
+        { label: 'NanoBanana',  data: months.map(m=>m.nano), backgroundColor: NANO, stack:'a', borderRadius:4 },
+        { label: 'GPT Image 2', data: months.map(m=>m.gpt),  backgroundColor: GPT,  stack:'a', borderRadius:4 },
+      ],
     },
-    options: {
-      maintainAspectRatio: false,
-      animation: { duration: 250 },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            title: (items) => items[0].label,
-            label: (ctx) => usd(ctx.parsed.y) + ' · 약 ' + krw(ctx.parsed.y, lastData.approx_krw_per_usd),
-          },
-          backgroundColor: '#0f1419',
-          titleColor: '#fff', bodyColor: '#fff',
-          borderColor: '#0f1419', borderWidth: 0,
-          padding: 10, displayColors: false,
-        },
-      },
+    options: { maintainAspectRatio: false,
+      plugins: { legend: { display:false },
+        tooltip: { backgroundColor:'#0f1419', titleColor:'#fff', bodyColor:'#fff', padding:10,
+          callbacks: { label: (c) => c.dataset.label + ': ' + usd(c.parsed.y) } } },
       scales: {
-        x: { ticks: { color: '#5b6473', maxRotation: 0, autoSkip: true, maxTicksLimit: 8, font:{size:11} },
-             grid: { display: false }, border: {display: false} },
-        y: { ticks: { color: '#5b6473', callback: (v) => usd(v), font:{size:11} },
-             grid: { color: '#eef0f3', drawTicks: false }, border: {display: false},
-             beginAtZero: true },
+        x: { stacked:true, ticks:{color:'#5b6473',font:{size:11}}, grid:{display:false}, border:{display:false} },
+        y: { stacked:true, ticks:{color:'#5b6473',callback:(v)=>usd(v),font:{size:11}}, grid:{color:'#eef0f3'}, border:{display:false} },
       },
-      interaction: { intersect: false, mode: 'index' },
     },
   });
-}
 
-function sparkSvg(values, color) {
-  if (!values.length) return '';
-  const w = 100, h = 24;
-  const max = Math.max(...values, 0.0001);
-  const dx = w / Math.max(1, values.length - 1);
-  const pts = values.map((v, i) => {
-    const x = i * dx;
-    const y = h - (v / max) * (h - 2) - 1;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
-  const area = `M0,${h} L${pts.split(' ').join(' L')} L${w},${h} Z`;
-  const fill = color + '22';
-  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-    <path d="${area}" fill="${fill}"/>
-    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/>
-  </svg>`;
-}
-
-function renderTable(elId, items, fx, color) {
-  const el = $('#' + elId);
-  el.innerHTML = '';
-  const total = items.reduce((s, it) => s + it.total, 0);
-  if (!items.length || total === 0) {
-    el.innerHTML = `<tr><td colspan="5" style="color:var(--dim);text-align:center;padding:18px">데이터 없음</td></tr>`;
-    return;
-  }
-  for (const it of items) {
-    const pct = total > 0 ? (it.total / total) * 100 : 0;
+  const tbody = $('#tbl-monthly'); tbody.innerHTML = '';
+  for (const m of months.slice().reverse()) {
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><span class="name">${it.category}</span><span class="pct">${pct.toFixed(1)}%</span></td>
-      <td class="num">${usd(it.today)}</td>
-      <td class="num">${usd(it.month)}</td>
-      <td class="num">${usd(it.total)}</td>
-      <td class="num">${sparkSvg(it.sparkline, color)}</td>
-    `;
-    el.appendChild(tr);
+    tr.innerHTML = `<td>${m.month}</td><td class="num">${usd(m.nano)}</td><td class="num">${usd(m.gpt)}</td><td class="num"><b>${usd(m.total)}</b></td>`;
+    tbody.appendChild(tr);
   }
 }
 
-function renderSyncPills(d) {
-  $('#genText').textContent = '갱신: ' + new Date(d.generated_at).toLocaleString('ko-KR');
+function renderStatus(d) {
+  const ts = d.last_refresh_ts;
+  const status = d.sync_status === 'ok';
+  $('#statusPill').classList.remove('warn','bad');
+  if (!status) $('#statusPill').classList.add('bad');
+  if (ts) {
+    const last = new Date(ts*1000);
+    $('#statusText').textContent = '정상 · 마지막 수집 ' + last.toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit'});
+  } else {
+    $('#statusText').textContent = status ? '정상' : '오류';
+  }
+  // age in sidebar footer
   const tick = () => {
-    if (!lastData) return;
-    const ageSec = Math.max(0, Math.floor((Date.now() - new Date(lastData.generated_at).getTime())/1000));
-    const mm = Math.floor(ageSec/60), ss = ageSec%60;
-    $('#tickText').textContent = ageSec < 60 ? '방금 갱신' : `${mm}분 ${ss}초 전 갱신`;
-    const pill = $('#tickPill');
-    pill.classList.remove('warn','bad');
-    if (ageSec > 15*60) pill.classList.add('bad');
-    else if (ageSec > 8*60) pill.classList.add('warn');
+    if (!lastData?.last_refresh_ts) { $('#age').textContent = '—'; return; }
+    const sec = Math.max(0, Math.floor((Date.now() - lastData.last_refresh_ts*1000)/1000));
+    const m = Math.floor(sec/60);
+    $('#age').textContent = sec < 60 ? '방금' : `${m}분 전`;
   };
   tick();
-  if (window.__tickInt) clearInterval(window.__tickInt);
-  window.__tickInt = setInterval(tick, 1000);
+  if (window.__t) clearInterval(window.__t);
+  window.__t = setInterval(tick, 30_000);
 }
 
-function renderSourceSync(prefix, sync, delayNote) {
-  const el = $('#sub-' + prefix);
-  if (!sync || !sync.last_run_ts) { el.textContent = delayNote || '—'; return; }
-  const last = new Date(sync.last_run_ts * 1000);
-  const status = sync.status === 'ok' ? '✓' : '⚠';
-  el.textContent = `${status} 마지막 수집 ${last.toLocaleString('ko-KR')} · ${delayNote || ''}`;
+function bindSegs() {
+  const wire = (segId, chartId, render) => {
+    const seg = $('#'+segId);
+    seg.querySelectorAll('button').forEach(btn => {
+      btn.onclick = () => {
+        seg.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+        btn.classList.add('on');
+        ranges[chartId] = parseInt(btn.dataset.r, 10);
+        render();
+      };
+    });
+  };
+  wire('seg-overview', 'chart-overview', () => renderOverview(lastData));
+  wire('seg-nano',     'chart-nano',     () => renderSourceTab('n', lastData.sources.nanobanana, NANO, NANO_FILL, 'seg-nano', 'chart-nano', 'tbl-nano'));
+  wire('seg-openai',   'chart-openai',   () => renderSourceTab('g', lastData.sources.openai,    GPT,  GPT_FILL,  'seg-openai','chart-openai','tbl-openai'));
 }
 
-function bindSegs(segId, canvasId, daily, color, fillColor) {
-  const seg = $('#' + segId);
-  seg.querySelectorAll('button').forEach(btn => {
-    btn.onclick = () => {
-      seg.querySelectorAll('button').forEach(b => b.classList.remove('on'));
-      btn.classList.add('on');
-      ranges[canvasId] = parseInt(btn.dataset.r, 10);
-      renderChart(canvasId, daily, ranges[canvasId], color, fillColor);
-    };
-  });
+function activateTab(name) {
+  $$('.nav-item').forEach(el => el.classList.toggle('on', el.dataset.tab === name));
+  $$('.tab').forEach(el => el.classList.toggle('on', el.id === 'tab-' + name));
+  if (!lastData) return;
+  if (name === 'overview') renderOverview(lastData);
+  else if (name === 'nano') renderSourceTab('n', lastData.sources.nanobanana, NANO, NANO_FILL, 'seg-nano', 'chart-nano', 'tbl-nano');
+  else if (name === 'openai') renderSourceTab('g', lastData.sources.openai, GPT, GPT_FILL, 'seg-openai', 'chart-openai', 'tbl-openai');
+  else if (name === 'history') renderHistory(lastData);
+  history.replaceState(null, '', '#' + name);
 }
+
+$$('.nav-item').forEach(el => el.onclick = () => activateTab(el.dataset.tab));
 
 async function refresh() {
   try {
-    const d = await fetchData();
+    const r = await fetch('data.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
     lastData = d;
-    const fx = d.approx_krw_per_usd || 1450;
-    $('#fx-rate').textContent = fx.toLocaleString();
-
-    renderSyncPills(d);
-    renderHeadline(d, fx);
-
-    const nano = d.sources.nanobanana, oa = d.sources.openai;
-    renderSource('nano', nano, fx);
-    renderSource('oa',   oa,   fx);
-
-    renderChart('chart-nano',   nano.daily, ranges['chart-nano'],   NANO_COLOR, NANO_FILL);
-    renderChart('chart-openai', oa.daily,   ranges['chart-openai'], GPT_COLOR,  GPT_FILL);
-
-    renderTable('tbl-nano',   nano.category_table, fx, NANO_COLOR);
-    renderTable('tbl-openai', oa.category_table,   fx, GPT_COLOR);
-
-    renderSourceSync('nano',   nano.sync,   nano.delay_note);
-    renderSourceSync('openai', oa.sync,     oa.delay_note);
-
-    bindSegs('seg-nano',   'chart-nano',   nano.daily, NANO_COLOR, NANO_FILL);
-    bindSegs('seg-openai', 'chart-openai', oa.daily,   GPT_COLOR,  GPT_FILL);
+    $('#fx-rate').textContent = (d.approx_krw_per_usd || 1450).toLocaleString();
+    renderStatus(d);
+    // re-render whichever tab is currently visible
+    const active = $$('.nav-item.on')[0]?.dataset.tab || 'overview';
+    activateTab(active);
+    bindSegs();
   } catch (e) {
-    $('#tickText').textContent = '갱신 실패: ' + e.message;
-    $('#tickPill').classList.add('bad');
+    $('#statusText').textContent = '갱신 실패: ' + e.message;
+    $('#statusPill').classList.add('bad');
   }
 }
+// initial
+const initial = (location.hash || '#overview').slice(1);
+$$('.nav-item').forEach(el => el.classList.toggle('on', el.dataset.tab === initial));
+$$('.tab').forEach(el => el.classList.toggle('on', el.id === 'tab-' + initial));
 refresh();
 setInterval(refresh, REFETCH_MS);
 </script>

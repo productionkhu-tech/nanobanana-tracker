@@ -29,6 +29,16 @@ def stage(name: str, fn) -> bool:
 
 def main() -> int:
     ok_collect = stage("collect", collect_run)
+    # Unify sync timestamps — both sources share the same "last refresh" moment.
+    try:
+        import sqlite3
+        from db import DB_PATH
+        ts = int(time.time())
+        con = sqlite3.connect(str(DB_PATH))
+        con.execute("UPDATE sync_log SET last_run_ts = ? WHERE status='ok'", (ts,))
+        con.commit(); con.close()
+    except Exception as e:
+        print(f"[sync-unify] skipped: {e}", flush=True)
     ok_build = stage("build", build_main)
     ok_push = stage("push", push_main)
     return 0 if (ok_build and ok_push) else 1
