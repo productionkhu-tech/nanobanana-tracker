@@ -8,7 +8,7 @@ import requests
 from google.cloud import bigquery
 from google.oauth2 import service_account
 
-from db import conn, update_sync, upsert_usage
+from db import conn, set_meta, update_sync, upsert_usage
 from keys import Keys, load
 
 GCP_BILLING_TABLE = (
@@ -84,9 +84,30 @@ def collect_gcp(keys: Keys) -> tuple[int, int | None, str | None]:
     if latest_day:
         last_data_ts = int(datetime.fromisoformat(latest_day).replace(tzinfo=timezone.utc).timestamp())
 
+    # Pull the latest currency_conversion_rate (today's GCP-applied USD→local rate)
+    fx_rate = None
+    try:
+        fx_sql = f"""
+        SELECT currency, currency_conversion_rate AS rate
+        FROM `{GCP_BILLING_TABLE}`
+        WHERE currency_conversion_rate IS NOT NULL
+          AND currency_conversion_rate > 0
+        ORDER BY usage_start_time DESC
+        LIMIT 1
+        """
+        for r in client.query(fx_sql).result():
+            fx_rate = float(r["rate"] or 0)
+            print(f"[fx] latest GCP rate: {r['currency']}/USD = {fx_rate}")
+            break
+    except Exception as e:
+        print(f"[fx] could not fetch latest rate: {e}")
+
     with conn() as c:
         n = upsert_usage(c, rows_out)
         update_sync(c, "gcp", _now_ts(), last_data_ts, "ok")
+        if fx_rate and fx_rate > 100:  # sanity check (KRW typically 1300-1500)
+            set_meta(c, "krw_per_usd", f"{fx_rate:.4f}")
+            set_meta(c, "fx_source", "gcp_billing_export")
     return n, last_data_ts, None
 
 

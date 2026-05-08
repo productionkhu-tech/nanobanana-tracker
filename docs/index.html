@@ -299,7 +299,14 @@
         </section>
 
         <section class="card">
-          <div class="card-head"><h3>소스별 분포 (이번 달)</h3></div>
+          <div class="card-head">
+            <h3>소스별 분포</h3>
+            <div class="seg" id="seg-share">
+              <button data-p="today" class="on">당일</button>
+              <button data-p="month">당월</button>
+              <button data-p="year">365일</button>
+            </div>
+          </div>
           <div class="card-body">
             <div class="donut-row">
               <div class="chart-wrap" style="height:200px"><canvas id="chart-source-share"></canvas></div>
@@ -431,6 +438,7 @@
 
       <div class="seg tabs" id="reports-tabs">
         <button data-r="monthly" class="on">월별</button>
+        <button data-r="weekly">주별 (월–일)</button>
         <button data-r="daily">일별</button>
         <button data-r="categories">카테고리 (전체 합)</button>
       </div>
@@ -450,6 +458,27 @@
                 <th class="num" data-sort="total">합계<span class="ord"></span></th>
               </tr></thead>
               <tbody id="tbl-monthly"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- weekly -->
+      <section class="card" id="rep-weekly" style="display:none">
+        <div class="card-head"><h3>주별 합산 (월요일–일요일 · 최근 12주)</h3>
+          <button class="btn" style="margin-left:auto" id="csv-weekly">CSV 내보내기</button></div>
+        <div class="card-body">
+          <div class="chart-wrap" style="height:220px;margin-bottom:14px"><canvas id="chart-weekly"></canvas></div>
+          <div class="tbl-scroll">
+            <table class="cat" id="tblWeekly">
+              <thead><tr>
+                <th data-sort="week_start">주차 (월요일)<span class="ord"></span></th>
+                <th data-sort="label">기간<span class="ord"></span></th>
+                <th class="num" data-sort="nano">NanoBanana<span class="ord"></span></th>
+                <th class="num" data-sort="gpt">GPT Image 2<span class="ord"></span></th>
+                <th class="num" data-sort="total">합계<span class="ord"></span></th>
+              </tr></thead>
+              <tbody id="tbl-weekly"></tbody>
             </table>
           </div>
         </div>
@@ -508,7 +537,7 @@
           <b>비용 측정</b>
           <ul>
             <li>모든 비용은 <b>USD 정가(list)</b> 기준 — 호출이 발생시킨 사용량 측정값. <b>Free Tier 차감 전</b>.</li>
-            <li>원화는 1 USD ≈ <span id="fx-rate">1,450</span>원으로 환산. 실제 GCP 청구 KRW와는 환율·세금 차이 존재.</li>
+            <li>원화는 <b>GCP 빌링 export의 일별 환율</b>(<span id="fx-source">gcp_billing_export</span>, 현재 1 USD = <span id="fx-rate">1,450</span>원)로 환산합니다. 매 cron 실행 시 GCP가 적용한 가장 최근 환율을 다시 가져오므로 자동으로 갱신됩니다.</li>
           </ul>
           <b style="display:block;margin-top:12px">데이터 지연</b>
           <ul>
@@ -541,9 +570,11 @@ const state = {
   currency: localStorage.getItem('ccy') || 'USD',
   reportsTab: 'monthly',
   dailyRange: 30,
-  sortMonthly: { key:'month', dir:1 },
-  sortDaily:   { key:'date',  dir:-1 },
-  sortCat:     { key:'total', dir:-1 },
+  sharePeriod: 'month',                    // overview source-share toggle
+  sortMonthly: { key:'month',      dir:1 },
+  sortWeekly:  { key:'week_start', dir:1 },
+  sortDaily:   { key:'date',       dir:-1 },
+  sortCat:     { key:'total',      dir:-1 },
 };
 let charts = {};
 let lastData = null;
@@ -662,21 +693,7 @@ function renderOverview() {
       borderWidth:2, pointRadius: series.length<=30?2:0, pointHoverRadius:4, fill:'-1', tension:.25, stack:'a' },
   ]);
 
-  const nMonth = d.sources.nanobanana.totals.month.cost;
-  const gMonth = d.sources.openai.totals.month.cost;
-  const items = [
-    { label:'NanoBanana',  value: nMonth, color: NANO },
-    { label:'GPT Image 2', value: gMonth, color: GPT  },
-  ];
-  donut('chart-source-share', items, nMonth + gMonth);
-  const list = $('#source-share-list'); list.innerHTML = '';
-  for (const it of items) {
-    const pct = (nMonth+gMonth) > 0 ? (it.value/(nMonth+gMonth))*100 : 0;
-    const div = document.createElement('div');
-    div.className = 'row-i';
-    div.innerHTML = `<span class="dot-c" style="background:${it.color}"></span><span class="name">${it.label}</span><span class="v">${fmt(it.value, fx)}</span><span class="pct">${pct.toFixed(0)}%</span>`;
-    list.appendChild(div);
-  }
+  renderSourceShare();
 
   const set = (p, t) => {
     setVal(p+'-today', fmt(t.today.cost, fx), p+'-today');
@@ -688,6 +705,33 @@ function renderOverview() {
   };
   set('ov-nano', d.sources.nanobanana.totals);
   set('ov-oa',   d.sources.openai.totals);
+}
+
+function renderSourceShare() {
+  if (!lastData) return;
+  const fx = fxRate();
+  const period = state.sharePeriod;
+  const labelMap = {today:'당일', month:'당월', year:'365일'};
+  const n = lastData.sources.nanobanana.totals[period].cost;
+  const g = lastData.sources.openai.totals[period].cost;
+  const total = n + g;
+  const items = [
+    { label:'NanoBanana',  value: n, color: NANO },
+    { label:'GPT Image 2', value: g, color: GPT  },
+  ];
+  donut('chart-source-share', items, total);
+  const list = $('#source-share-list'); list.innerHTML = '';
+  const head = document.createElement('div');
+  head.style.cssText = 'color:var(--muted);font-size:11px;letter-spacing:.04em;font-family:var(--mono);text-transform:uppercase;margin-bottom:2px';
+  head.textContent = labelMap[period] + ' 합계: ' + fmt(total, fx);
+  list.appendChild(head);
+  for (const it of items) {
+    const pct = total > 0 ? (it.value/total)*100 : 0;
+    const div = document.createElement('div');
+    div.className = 'row-i';
+    div.innerHTML = `<span class="dot-c" style="background:${it.color}"></span><span class="name">${it.label}</span><span class="v">${fmt(it.value, fx)}</span><span class="pct">${pct.toFixed(0)}%</span>`;
+    list.appendChild(div);
+  }
 }
 
 function renderSourceTab(prefix, src, color, fillColor, chartId, tableId) {
@@ -791,6 +835,49 @@ function renderMonthly() {
   setHeaderArrows('tblMonthly', state.sortMonthly);
 }
 
+function renderWeekly() {
+  if (!lastData) return;
+  const fx = fxRate();
+  const weeks = lastData.combined_weekly || [];
+
+  const ctx = document.getElementById('chart-weekly').getContext('2d');
+  if (charts['chart-weekly']) charts['chart-weekly'].destroy();
+  charts['chart-weekly'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: weeks.map(w => w.label),
+      datasets: [
+        { label:'NanoBanana',  data: weeks.map(w=>w.nano), backgroundColor: NANO, stack:'a', borderRadius:4 },
+        { label:'GPT Image 2', data: weeks.map(w=>w.gpt),  backgroundColor: GPT,  stack:'a', borderRadius:4 },
+      ] },
+    options: { maintainAspectRatio:false,
+      plugins: { legend:{display:false},
+        tooltip: { backgroundColor:'#0f1419', titleColor:'#fff', bodyColor:'#fff', padding:10,
+          callbacks: { label: (c) => c.dataset.label + ': ' + fmt(c.parsed.y, fx) } } },
+      scales: {
+        x: { stacked:true, ticks:{color:'#5b6473',font:{size:11},maxRotation:0,autoSkip:true}, grid:{display:false}, border:{display:false} },
+        y: { stacked:true, ticks:{color:'#5b6473',callback:(v)=>fmt(v, fx),font:{size:11}}, grid:{color:'#eef0f3'}, border:{display:false} },
+      },
+    },
+  });
+
+  const sorted = sortRows(weeks, state.sortWeekly);
+  const tbody = $('#tbl-weekly'); tbody.innerHTML = '';
+  const todayD = (new Date()).toISOString().slice(0,10);
+  if (!sorted.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="color:var(--dim);text-align:center;padding:18px">데이터 없음</td></tr>`;
+  } else for (const w of sorted) {
+    const tr = document.createElement('tr');
+    if (w.week_start <= todayD && todayD <= w.week_end) tr.classList.add('now');
+    tr.innerHTML = `<td><b>${w.week_start}</b></td>
+      <td>${w.label}</td>
+      <td class="num">${fmt(w.nano, fx)}</td>
+      <td class="num">${fmt(w.gpt, fx)}</td>
+      <td class="num"><b>${fmt(w.total, fx)}</b></td>`;
+    tbody.appendChild(tr);
+  }
+  setHeaderArrows('tblWeekly', state.sortWeekly);
+}
+
 function renderDaily() {
   if (!lastData) return;
   const fx = fxRate();
@@ -842,11 +929,13 @@ function renderCategories() {
 
 function showReportSubtab(name) {
   $$('#reports-tabs button').forEach(b => b.classList.toggle('on', b.dataset.r === name));
-  $('#rep-monthly').style.display    = name === 'monthly' ? '' : 'none';
-  $('#rep-daily').style.display      = name === 'daily'   ? '' : 'none';
+  $('#rep-monthly').style.display    = name === 'monthly'    ? '' : 'none';
+  $('#rep-weekly').style.display     = name === 'weekly'     ? '' : 'none';
+  $('#rep-daily').style.display      = name === 'daily'      ? '' : 'none';
   $('#rep-categories').style.display = name === 'categories' ? '' : 'none';
   state.reportsTab = name;
   if (name === 'monthly') renderMonthly();
+  if (name === 'weekly') renderWeekly();
   if (name === 'daily') renderDaily();
   if (name === 'categories') renderCategories();
 }
@@ -897,14 +986,28 @@ function bindAllSegs() {
     });
   };
   setSort('tblMonthly', state.sortMonthly, renderMonthly);
+  setSort('tblWeekly',  state.sortWeekly,  renderWeekly);
   setSort('tblDaily',   state.sortDaily,   renderDaily);
   setSort('tblCat',     state.sortCat,     renderCategories);
+
+  // Source-share period toggle (overview)
+  $$('#seg-share button').forEach(b => b.onclick = () => {
+    $$('#seg-share button').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    state.sharePeriod = b.dataset.p;
+    renderSourceShare();
+  });
 
   // CSV
   $('#csv-monthly').onclick = () => {
     const rows = [['Month','NanoBanana_USD','GPT_Image_2_USD','Total_USD']];
     for (const m of lastData.combined_monthly) rows.push([m.month, m.nano.toFixed(4), m.gpt.toFixed(4), m.total.toFixed(4)]);
     exportCsv('monthly.csv', rows);
+  };
+  $('#csv-weekly').onclick = () => {
+    const rows = [['Week_Start_Mon','Week_End_Sun','Label','NanoBanana_USD','GPT_Image_2_USD','Total_USD']];
+    for (const w of (lastData.combined_weekly||[])) rows.push([w.week_start, w.week_end, w.label, w.nano.toFixed(4), w.gpt.toFixed(4), w.total.toFixed(4)]);
+    exportCsv('weekly.csv', rows);
   };
   $('#csv-daily').onclick = () => {
     const rows = [['Date','NanoBanana_USD','GPT_Image_2_USD','Total_USD']];
@@ -957,26 +1060,37 @@ function setStatus(d) {
   }
   lastSeenGen = d.generated_at;
 
+  // Build clearer label — make it obvious this is "when data was COLLECTED",
+  // not the wall clock. Updated every second so "X분 전" stays accurate.
   const ts = d.last_refresh_ts;
-  const txt = ts
-    ? 'Live · ' + new Date(ts*1000).toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit'})
-    : (status ? 'Live' : '오류');
-  $('#statusText').textContent = txt;
-  $$('.status-mirror').forEach(el => {
-    const span = el.querySelector(':scope > :nth-child(2)') || el.lastElementChild;
-    if (span && span.tagName !== 'SPAN') return;
-    if (el.children.length >= 2) el.children[1].textContent = txt;
-  });
-
-  const tick = () => {
-    if (!lastData?.last_refresh_ts) { $('#age').textContent = '—'; return; }
-    const sec = Math.max(0, Math.floor((Date.now() - lastData.last_refresh_ts*1000)/1000));
+  const renderTimeLabels = () => {
+    if (!ts) {
+      $('#statusText').textContent = status ? 'Live' : '오류';
+      $('#age').textContent = '—';
+      $$('.status-mirror').forEach(el => {
+        if (el.children.length >= 2) el.children[1].textContent = status ? 'Live' : '오류';
+      });
+      return;
+    }
+    const t = new Date(ts*1000);
+    const hhmm = t.toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit'});
+    const sec = Math.max(0, Math.floor((Date.now() - ts*1000)/1000));
     const m = Math.floor(sec/60);
-    $('#age').textContent = sec < 60 ? '방금' : `${m}분 전`;
+    const ago = sec < 60 ? '방금' : `${m}분 전`;
+    const text = `마지막 수집 ${hhmm} (${ago})`;
+    const tip = `5분마다 자동 수집 · 페이지는 30초마다 새 데이터 확인`;
+    const pill = $('#statusPill');
+    if (pill) { pill.title = tip; }
+    $('#statusText').textContent = text;
+    $$('.status-mirror').forEach(el => {
+      el.title = tip;
+      if (el.children.length >= 2) el.children[1].textContent = text;
+    });
+    $('#age').textContent = ago;
   };
-  tick();
+  renderTimeLabels();
   if (window.__t) clearInterval(window.__t);
-  window.__t = setInterval(tick, 30_000);
+  window.__t = setInterval(renderTimeLabels, 1000);
 }
 
 function rerenderActive() {
@@ -1003,6 +1117,7 @@ async function refresh() {
     const d = await r.json();
     lastData = d;
     if ($('#fx-rate')) $('#fx-rate').textContent = (d.approx_krw_per_usd || 1450).toLocaleString();
+    if ($('#fx-source')) $('#fx-source').textContent = d.fx_source || 'fallback';
 
     setStatus(d);
     rerenderActive();

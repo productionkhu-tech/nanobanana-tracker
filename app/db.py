@@ -28,7 +28,27 @@ CREATE TABLE IF NOT EXISTS sync_log (
   status       TEXT NOT NULL,    -- 'ok' | 'error'
   error_msg    TEXT
 );
+
+CREATE TABLE IF NOT EXISTS meta (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_ts INTEGER
+);
 """
+
+
+def set_meta(c: sqlite3.Connection, key: str, value: str) -> None:
+    import time as _t
+    c.execute(
+        "INSERT INTO meta (key, value, updated_ts) VALUES (?, ?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_ts=excluded.updated_ts",
+        (key, value, int(_t.time())),
+    )
+
+
+def get_meta(c: sqlite3.Connection, key: str, default=None):
+    row = c.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+    return row["value"] if row else default
 
 
 @contextmanager

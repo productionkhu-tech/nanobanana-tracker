@@ -45,6 +45,23 @@ def fetch_sync(c):
     return out
 
 
+def fetch_meta(c):
+    out = {}
+    try:
+        for r in c.execute("SELECT key, value FROM meta"):
+            out[r["key"]] = r["value"]
+    except Exception:
+        pass
+    return out
+
+
+def iso_week_monday(d_iso: str) -> str:
+    """Return the Monday-of-week date (ISO 8601) for the given YYYY-MM-DD string."""
+    dt = datetime.fromisoformat(d_iso)
+    monday = dt - timedelta(days=dt.weekday())
+    return monday.strftime("%Y-%m-%d")
+
+
 def build_source_view(rows, source, include_pred, normalize_cat, primary_label):
     today = utc_today_str()
     today_dt = datetime.fromisoformat(today)
@@ -148,6 +165,7 @@ def main() -> None:
     c.row_factory = sqlite3.Row
     rows = fetch_rows(c)
     sync = fetch_sync(c)
+    meta = fetch_meta(c)
     c.close()
 
     nano = build_source_view(rows, source="gcp",
@@ -180,19 +198,55 @@ def main() -> None:
         cg = openai["monthly"][i]["cost"] if i < len(openai["monthly"]) else 0
         combined_monthly.append({"month": month, "nano": cn, "gpt": cg, "total": round(cn + cg, 4)})
 
+    # Weekly buckets (ISO Monday-Sunday) — last 12 weeks
+    today_dt = datetime.fromisoformat(utc_today_str())
+    this_monday = today_dt - timedelta(days=today_dt.weekday())
+    weeks_acc = {}
+    for d in combined_daily:
+        wkmon = iso_week_monday(d["date"])
+        if wkmon not in weeks_acc:
+            weeks_acc[wkmon] = {"week_start": wkmon, "nano": 0.0, "gpt": 0.0}
+        weeks_acc[wkmon]["nano"] += d["nano"]
+        weeks_acc[wkmon]["gpt"]  += d["gpt"]
+    combined_weekly = []
+    for i in range(11, -1, -1):
+        wmon = (this_monday - timedelta(weeks=i))
+        wkey = wmon.strftime("%Y-%m-%d")
+        wsun = wmon + timedelta(days=6)
+        b = weeks_acc.get(wkey, {"nano": 0.0, "gpt": 0.0})
+        combined_weekly.append({
+            "week_start": wkey,
+            "week_end": wsun.strftime("%Y-%m-%d"),
+            "label": f"{wmon.month}/{wmon.day} – {wsun.month}/{wsun.day}",
+            "nano": round(b["nano"], 4),
+            "gpt":  round(b["gpt"],  4),
+            "total": round(b["nano"] + b["gpt"], 4),
+        })
+
     # Single unified last-refresh timestamp
     sync_ts_candidates = [v.get("last_run_ts") for v in sync.values() if v.get("last_run_ts")]
     last_refresh_ts = max(sync_ts_candidates) if sync_ts_candidates else None
     sync_status = "ok" if all(v.get("status") == "ok" for v in sync.values()) else "error"
 
+    fx_rate = 1450.0
+    fx_source = "fallback"
+    try:
+        if meta.get("krw_per_usd"):
+            fx_rate = float(meta["krw_per_usd"])
+            fx_source = meta.get("fx_source", "gcp_billing_export")
+    except Exception:
+        pass
+
     payload = {
-        "schema_version": 4,
+        "schema_version": 5,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "approx_krw_per_usd": 1450,
+        "approx_krw_per_usd": round(fx_rate, 4),
+        "fx_source": fx_source,
         "last_refresh_ts": last_refresh_ts,
         "sync_status": sync_status,
         "totals_combined": combined,
         "combined_daily": combined_daily,
+        "combined_weekly": combined_weekly,
         "combined_monthly": combined_monthly,
         "sources": {
             "nanobanana": {**nano, "tag_color": "#7c3aed"},
