@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NanoBanana / GPT-Image-2 Usage</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0b0e14; --panel:#141923; --panel2:#1b2230; --line:#262f42;
+    --text:#e7ecf3; --mute:#8d99ad; --good:#10b981; --warn:#f59e0b; --bad:#ef4444;
+    --nano:#7c3aed; --gpt:#10b981;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Malgun Gothic,sans-serif}
+  header{padding:18px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  header h1{font-size:18px;margin:0;font-weight:600;letter-spacing:-.01em}
+  header .grow{flex:1}
+  header .meta{display:flex;gap:14px;font-size:12px;color:var(--mute);align-items:center;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-size:12px}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:var(--good)}
+  .pill.warn .dot{background:var(--warn)}
+  .pill.bad .dot{background:var(--bad)}
+  main{padding:20px 24px 60px;max-width:1400px;margin:0 auto}
+  .grid{display:grid;gap:16px}
+  .grid.sources{grid-template-columns:1fr 1fr}
+  @media (max-width:900px){.grid.sources{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+  .card.tight{padding:14px 16px}
+  .card h2{margin:0 0 4px;font-size:15px;letter-spacing:-.01em}
+  .card .sub{color:var(--mute);font-size:12px;margin-bottom:12px}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .kpi{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .kpi .lbl{color:var(--mute);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+  .kpi .v{font-size:24px;font-weight:600;margin-top:4px;letter-spacing:-.02em}
+  .kpi .v.s{font-size:14px;color:var(--mute);font-weight:500;margin-top:2px}
+  .legend-row{display:flex;gap:14px;font-size:12px;color:var(--mute);margin-bottom:8px}
+  .legend-row .sw{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle;margin-right:6px}
+  .seg{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-left:auto}
+  .seg button{background:transparent;border:0;color:var(--mute);padding:6px 12px;font-size:12px;cursor:pointer}
+  .seg button.on{background:#0a72ff22;color:#7fb6ff}
+  .row-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .breakdown{display:grid;grid-template-columns:1fr auto;gap:6px 14px;font-size:12.5px}
+  .breakdown .cat{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .breakdown .val{color:var(--mute);font-variant-numeric:tabular-nums}
+  .chart-wrap{position:relative;height:240px}
+  .footer{margin-top:24px;color:var(--mute);font-size:11px;line-height:1.7}
+  .footer code{background:var(--panel2);padding:2px 6px;border-radius:4px}
+  .badge{font-size:10px;padding:1px 6px;border-radius:4px;background:#1f2a44;color:#9bb6ff;letter-spacing:.05em;margin-left:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>NanoBanana &nbsp;·&nbsp; GPT-Image-2 <span class="badge">Usage Tracker</span></h1>
+  <div class="grow"></div>
+  <div class="meta">
+    <span id="tickPill" class="pill"><span class="dot"></span><span id="tickText">loading…</span></span>
+    <span id="genPill" class="pill"><span class="dot"></span><span id="genText">—</span></span>
+  </div>
+</header>
+
+<main>
+  <div class="grid sources">
+    <section class="card" id="card-nano">
+      <div class="row-header">
+        <h2 style="color:var(--nano)">● NanoBanana (Gemini API + Vertex AI)</h2>
+      </div>
+      <div class="sub" id="sub-nano">—</div>
+      <div class="kpis">
+        <div class="kpi"><div class="lbl">Today</div><div class="v" id="nano-today-cost">$—</div><div class="v s" id="nano-today-extra"></div></div>
+        <div class="kpi"><div class="lbl">This Month</div><div class="v" id="nano-month-cost">$—</div><div class="v s" id="nano-month-extra"></div></div>
+        <div class="kpi"><div class="lbl">This Year</div><div class="v" id="nano-year-cost">$—</div><div class="v s" id="nano-year-extra"></div></div>
+      </div>
+      <div style="margin-top:14px">
+        <div class="legend-row">
+          <span><span class="sw" style="background:var(--nano)"></span>NanoBanana</span>
+          <span><span class="sw" style="background:#3b4763"></span>그 외 GCP</span>
+          <div class="seg" id="seg-nano">
+            <button data-r="day" class="on">일</button>
+            <button data-r="month">월</button>
+            <button data-r="year">연</button>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="chart-nano"></canvas></div>
+      </div>
+      <div style="margin-top:14px">
+        <div class="sub">서비스별 누적 (전체)</div>
+        <div class="breakdown" id="bd-nano"></div>
+      </div>
+    </section>
+
+    <section class="card" id="card-openai">
+      <div class="row-header">
+        <h2 style="color:var(--gpt)">● GPT Image 2</h2>
+      </div>
+      <div class="sub" id="sub-openai">—</div>
+      <div class="kpis">
+        <div class="kpi"><div class="lbl">Today</div><div class="v" id="oa-today-cost">$—</div><div class="v s" id="oa-today-extra"></div></div>
+        <div class="kpi"><div class="lbl">This Month</div><div class="v" id="oa-month-cost">$—</div><div class="v s" id="oa-month-extra"></div></div>
+        <div class="kpi"><div class="lbl">This Year</div><div class="v" id="oa-year-cost">$—</div><div class="v s" id="oa-year-extra"></div></div>
+      </div>
+      <div style="margin-top:14px">
+        <div class="legend-row">
+          <span><span class="sw" style="background:var(--gpt)"></span>GPT Image 2</span>
+          <span><span class="sw" style="background:#3b4763"></span>그 외 OpenAI</span>
+          <div class="seg" id="seg-openai">
+            <button data-r="day" class="on">일</button>
+            <button data-r="month">월</button>
+            <button data-r="year">연</button>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="chart-openai"></canvas></div>
+      </div>
+      <div style="margin-top:14px">
+        <div class="sub">라인 아이템별 누적 (전체)</div>
+        <div class="breakdown" id="bd-openai"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="footer">
+    데이터 출처: GCP Billing Export → BigQuery (NanoBanana) · OpenAI Admin API (GPT Image 2). &nbsp;
+    수집 주기 5분. GCP는 빌링 export 자체가 수 시간 지연되므로 오늘/방금 분은 늦게 반영됩니다.
+    페이지는 <code>data.json</code>을 60초마다 다시 가져옵니다.
+  </div>
+</main>
+
+<script>
+const NANO_COLOR = '#7c3aed';
+const GPT_COLOR  = '#10b981';
+const OTHER_COLOR = '#3b4763';
+const REFETCH_MS = 60_000;
+
+const $ = (s) => document.querySelector(s);
+const fmtUsd = (n) => '$' + (Math.round((n||0)*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtInt = (n) => (n||0).toLocaleString('en-US');
+
+let charts = { nano: null, openai: null };
+let lastData = null;
+
+async function fetchData() {
+  const r = await fetch('../data.json?t=' + Date.now(), { cache: 'no-store' });
+  if (!r.ok) throw new Error('fetch ' + r.status);
+  return await r.json();
+}
+
+function renderKPI(prefix, totals) {
+  $(`#${prefix}-today-cost`).textContent = fmtUsd(totals.today.cost);
+  $(`#${prefix}-month-cost`).textContent = fmtUsd(totals.month.cost);
+  $(`#${prefix}-year-cost`).textContent  = fmtUsd(totals.year.cost);
+  const ex = (t) => {
+    const parts = [];
+    if (t.images)   parts.push(`${fmtInt(t.images)} imgs`);
+    if (t.requests) parts.push(`${fmtInt(t.requests)} reqs`);
+    return parts.join(' · ');
+  };
+  $(`#${prefix}-today-extra`).textContent = ex(totals.today);
+  $(`#${prefix}-month-extra`).textContent = ex(totals.month);
+  $(`#${prefix}-year-extra`).textContent  = ex(totals.year);
+}
+
+function aggSeries(daily, range) {
+  // daily is sorted oldest→newest, length 365
+  if (range === 'day') {
+    const last30 = daily.slice(-30);
+    return last30.map(d => ({label: d.date.slice(5), primary: d.cost_primary, other: d.cost_other}));
+  }
+  if (range === 'month') {
+    const buckets = {};
+    for (const d of daily) {
+      const k = d.date.slice(0,7);
+      if (!buckets[k]) buckets[k] = {label:k, primary:0, other:0};
+      buckets[k].primary += d.cost_primary;
+      buckets[k].other   += d.cost_other;
+    }
+    return Object.values(buckets);
+  }
+  // year: just one bucket
+  let p = 0, o = 0;
+  for (const d of daily) { p += d.cost_primary; o += d.cost_other; }
+  return [{label: 'Last 365d', primary: p, other: o}];
+}
+
+function renderChart(canvasId, daily, range, primaryColor) {
+  const series = aggSeries(daily, range);
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  if (charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: series.map(s => s.label),
+      datasets: [
+        { label: 'primary', data: series.map(s => s.primary), backgroundColor: primaryColor, stack: 'a', borderRadius: 4 },
+        { label: 'other',   data: series.map(s => s.other),   backgroundColor: OTHER_COLOR,   stack: 'a', borderRadius: 4 },
+      ],
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.dataset.label}: ${fmtUsd(ctx.parsed.y)}`,
+            footer: (items) => {
+              const sum = items.reduce((s,i)=>s+i.parsed.y,0);
+              return 'total: ' + fmtUsd(sum);
+            }
+          }
+        },
+      },
+      scales: {
+        x: { stacked: true, ticks: { color: '#8d99ad', maxRotation: 0, autoSkip: true }, grid: { display: false } },
+        y: { stacked: true, ticks: { color: '#8d99ad', callback: (v) => fmtUsd(v) }, grid: { color: '#26304240' } },
+      },
+    },
+  });
+}
+
+function renderBreakdown(elId, items, max=8) {
+  const el = $('#' + elId);
+  el.innerHTML = '';
+  if (!items.length) { el.innerHTML = '<span class="cat" style="color:var(--mute)">데이터 없음</span><span class="val"></span>'; return; }
+  for (const it of items.slice(0, max)) {
+    const c = document.createElement('div'); c.className = 'cat'; c.textContent = it.category;
+    const v = document.createElement('div'); v.className = 'val'; v.textContent = fmtUsd(it.cost);
+    el.appendChild(c); el.appendChild(v);
+  }
+}
+
+function renderSyncPills(d) {
+  const gen = new Date(d.generated_at);
+  $('#genText').textContent = '생성: ' + gen.toLocaleString();
+
+  const tick = () => {
+    if (!lastData) return;
+    const now = Date.now();
+    const ageSec = Math.max(0, Math.floor((now - new Date(lastData.generated_at).getTime())/1000));
+    const mm = Math.floor(ageSec/60), ss = ageSec%60;
+    const txt = ageSec < 60 ? `방금 갱신` : `${mm}분 ${ss}초 전 갱신`;
+    $('#tickText').textContent = txt;
+    const pill = $('#tickPill');
+    pill.classList.remove('warn','bad');
+    if (ageSec > 15*60) pill.classList.add('bad');
+    else if (ageSec > 8*60) pill.classList.add('warn');
+  };
+  tick();
+  if (window.__tickInt) clearInterval(window.__tickInt);
+  window.__tickInt = setInterval(tick, 1000);
+}
+
+function renderSync(prefix, sync, delayNote) {
+  const el = $('#sub-' + prefix);
+  if (!sync || !sync.last_run_ts) { el.textContent = delayNote || '—'; return; }
+  const last = new Date(sync.last_run_ts * 1000);
+  const status = sync.status === 'ok' ? '✓' : '⚠ ' + (sync.error_msg || '');
+  el.textContent = `${status} 마지막 수집: ${last.toLocaleString()} · ${delayNote || ''}`;
+}
+
+let ranges = { 'chart-nano': 'day', 'chart-openai': 'day' };
+
+function bindSegs(segId, canvasId, daily, color) {
+  const seg = $('#' + segId);
+  seg.querySelectorAll('button').forEach(btn => {
+    btn.onclick = () => {
+      seg.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      ranges[canvasId] = btn.dataset.r;
+      renderChart(canvasId, daily, btn.dataset.r, color);
+    };
+  });
+}
+
+async function refresh() {
+  try {
+    const d = await fetchData();
+    lastData = d;
+    renderSyncPills(d);
+
+    const nano = d.sources.nanobanana;
+    const oa = d.sources.openai;
+
+    renderKPI('nano', nano.totals);
+    renderKPI('oa',   oa.totals);
+
+    renderChart('chart-nano',   nano.daily, ranges['chart-nano'],   NANO_COLOR);
+    renderChart('chart-openai', oa.daily,   ranges['chart-openai'], GPT_COLOR);
+
+    renderBreakdown('bd-nano',   nano.category_breakdown);
+    renderBreakdown('bd-openai', oa.category_breakdown);
+
+    renderSync('nano',   nano.sync,   nano.delay_note);
+    renderSync('openai', oa.sync,     oa.delay_note);
+
+    bindSegs('seg-nano',   'chart-nano',   nano.daily, NANO_COLOR);
+    bindSegs('seg-openai', 'chart-openai', oa.daily,   GPT_COLOR);
+  } catch (e) {
+    $('#tickText').textContent = '갱신 실패: ' + e.message;
+    $('#tickPill').classList.add('bad');
+  }
+}
+refresh();
+setInterval(refresh, REFETCH_MS);
+</script>
+</body>
+</html>
