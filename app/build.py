@@ -104,18 +104,15 @@ def build_source_view(rows, source, include_pred, normalize_cat, primary_label):
         series.append({"date": d, "cost": round(daily_cost.get(d, 0.0), 4)})
         cur += timedelta(days=1)
 
-    # Monthly buckets (last 12 months)
+    # Monthly buckets — ALL months that have data + current month (zero-fill)
+    # Capped at 36 months to keep payload reasonable; tables can scroll.
     months: dict[str, float] = {}
     for d, v in daily_cost.items():
-        m = d[:7]
-        months[m] = months.get(m, 0.0) + v
-    monthly = []
-    md = today_dt.replace(day=1)
-    for _ in range(12):
-        k = md.strftime("%Y-%m")
-        monthly.append({"month": k, "cost": round(months.get(k, 0.0), 4)})
-        md = (md - timedelta(days=1)).replace(day=1)
-    monthly.reverse()
+        months[d[:7]] = months.get(d[:7], 0.0) + v
+    if today_dt.strftime("%Y-%m") not in months:
+        months[today_dt.strftime("%Y-%m")] = 0.0
+    sorted_months = sorted(months.keys())[-36:]
+    monthly = [{"month": k, "cost": round(months[k], 4)} for k in sorted_months]
 
     cat_table = []
     for cat, by_date in by_cat_cost.items():
@@ -191,12 +188,15 @@ def main() -> None:
         cg = openai["daily"][i]["cost"] if i < len(openai["daily"]) else 0
         combined_daily.append({"date": date, "nano": cn, "gpt": cg, "total": round(cn + cg, 4)})
 
+    # Build combined_monthly by zipping on month key (length may differ between sources)
+    nano_by_month = {m["month"]: m["cost"] for m in nano["monthly"]}
+    gpt_by_month  = {m["month"]: m["cost"] for m in openai["monthly"]}
+    all_months = sorted(set(nano_by_month) | set(gpt_by_month))[-36:]
     combined_monthly = []
-    for i, mnano in enumerate(nano["monthly"]):
-        month = mnano["month"]
-        cn = mnano["cost"]
-        cg = openai["monthly"][i]["cost"] if i < len(openai["monthly"]) else 0
-        combined_monthly.append({"month": month, "nano": cn, "gpt": cg, "total": round(cn + cg, 4)})
+    for m in all_months:
+        cn = nano_by_month.get(m, 0.0)
+        cg = gpt_by_month.get(m, 0.0)
+        combined_monthly.append({"month": m, "nano": cn, "gpt": cg, "total": round(cn + cg, 4)})
 
     # Weekly buckets (ISO Monday-Sunday) — last 12 weeks
     today_dt = datetime.fromisoformat(utc_today_str())
@@ -237,13 +237,17 @@ def main() -> None:
     except Exception:
         pass
 
+    today_dt = datetime.fromisoformat(utc_today_str())
     payload = {
-        "schema_version": 5,
+        "schema_version": 6,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "approx_krw_per_usd": round(fx_rate, 4),
         "fx_source": fx_source,
         "last_refresh_ts": last_refresh_ts,
         "sync_status": sync_status,
+        "current_year": today_dt.year,
+        "year_start_date": today_dt.strftime("%Y-01-01"),
+        "today_date": today_dt.strftime("%Y-%m-%d"),
         "totals_combined": combined,
         "combined_daily": combined_daily,
         "combined_weekly": combined_weekly,

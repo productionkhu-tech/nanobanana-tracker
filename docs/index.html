@@ -269,11 +269,11 @@
             <div class="k" id="hl-week-alt">—</div>
             <div class="d">최근 7일 합</div>
           </div>
-          <div class="hl-cell">
-            <div class="l">last 365 days</div>
+          <div class="hl-cell" title="이번 1월 1일부터 오늘까지의 누적 비용 (calendar-year YTD)">
+            <div class="l">올해 누적 (YTD)</div>
             <div class="v" id="hl-year">—</div>
             <div class="k" id="hl-year-alt">—</div>
-            <div class="d">12개월 누적</div>
+            <div class="d" id="hl-year-range">—</div>
           </div>
         </div>
       </section>
@@ -304,7 +304,7 @@
             <div class="seg" id="seg-share">
               <button data-p="today" class="on">당일</button>
               <button data-p="month">당월</button>
-              <button data-p="year">365일</button>
+              <button data-p="year">올해 (YTD)</button>
             </div>
           </div>
           <div class="card-body">
@@ -323,7 +323,7 @@
             <div class="num-strip">
               <div class="num"><div class="l">today</div><div class="v" id="ov-nano-today">—</div><div class="k" id="ov-nano-today-alt">—</div></div>
               <div class="num"><div class="l">this month</div><div class="v" id="ov-nano-month">—</div><div class="k" id="ov-nano-month-alt">—</div></div>
-              <div class="num"><div class="l">365d total</div><div class="v" id="ov-nano-year">—</div><div class="k" id="ov-nano-year-alt">—</div></div>
+              <div class="num"><div class="l">올해 누적 (YTD)</div><div class="v" id="ov-nano-year">—</div><div class="k" id="ov-nano-year-alt">—</div></div>
             </div>
           </div>
         </section>
@@ -333,7 +333,7 @@
             <div class="num-strip">
               <div class="num"><div class="l">today</div><div class="v" id="ov-oa-today">—</div><div class="k" id="ov-oa-today-alt">—</div></div>
               <div class="num"><div class="l">this month</div><div class="v" id="ov-oa-month">—</div><div class="k" id="ov-oa-month-alt">—</div></div>
-              <div class="num"><div class="l">365d total</div><div class="v" id="ov-oa-year">—</div><div class="k" id="ov-oa-year-alt">—</div></div>
+              <div class="num"><div class="l">올해 누적 (YTD)</div><div class="v" id="ov-oa-year">—</div><div class="k" id="ov-oa-year-alt">—</div></div>
             </div>
           </div>
         </section>
@@ -355,7 +355,7 @@
           <div class="num-strip">
             <div class="num"><div class="l">today</div><div class="v" id="n-today">—</div><div class="k" id="n-today-alt">—</div><div class="d" id="n-today-d">—</div></div>
             <div class="num"><div class="l">this month</div><div class="v" id="n-month">—</div><div class="k" id="n-month-alt">—</div><div class="d" id="n-month-d">—</div></div>
-            <div class="num"><div class="l">365d total</div><div class="v" id="n-year">—</div><div class="k" id="n-year-alt">—</div></div>
+            <div class="num"><div class="l">올해 누적 (YTD)</div><div class="v" id="n-year">—</div><div class="k" id="n-year-alt">—</div></div>
           </div>
         </div>
       </section>
@@ -398,7 +398,7 @@
           <div class="num-strip">
             <div class="num"><div class="l">today</div><div class="v" id="g-today">—</div><div class="k" id="g-today-alt">—</div><div class="d" id="g-today-d">—</div></div>
             <div class="num"><div class="l">this month</div><div class="v" id="g-month">—</div><div class="k" id="g-month-alt">—</div><div class="d" id="g-month-d">—</div></div>
-            <div class="num"><div class="l">365d total</div><div class="v" id="g-year">—</div><div class="k" id="g-year-alt">—</div></div>
+            <div class="num"><div class="l">올해 누적 (YTD)</div><div class="v" id="g-year">—</div><div class="k" id="g-year-alt">—</div></div>
           </div>
         </div>
       </section>
@@ -437,19 +437,19 @@
       </div>
 
       <div class="seg tabs" id="reports-tabs">
-        <button data-r="monthly" class="on">월별</button>
+        <button data-r="daily" class="on">일별</button>
         <button data-r="weekly">주별 (월–일)</button>
-        <button data-r="daily">일별</button>
+        <button data-r="monthly">월별</button>
         <button data-r="categories">카테고리 (전체 합)</button>
       </div>
 
       <!-- monthly -->
-      <section class="card" id="rep-monthly">
-        <div class="card-head"><h3>월별 합산 (최근 12개월)</h3>
+      <section class="card" id="rep-monthly" style="display:none">
+        <div class="card-head"><h3>월별 합산 (최근 36개월까지, 데이터 있는 월만)</h3>
           <button class="btn" style="margin-left:auto" id="csv-monthly">CSV 내보내기</button></div>
         <div class="card-body">
           <div class="chart-wrap" style="height:220px;margin-bottom:14px"><canvas id="chart-monthly"></canvas></div>
-          <div class="tbl-scroll">
+          <div class="tbl-scroll" style="max-height:480px">
             <table class="cat" id="tblMonthly">
               <thead><tr>
                 <th data-sort="month">월<span class="ord"></span></th>
@@ -485,7 +485,7 @@
       </section>
 
       <!-- daily -->
-      <section class="card" id="rep-daily" style="display:none">
+      <section class="card" id="rep-daily">
         <div class="card-head"><h3>일별 합산</h3>
           <div class="seg" id="seg-daily-range" style="margin-left:0">
             <button data-r="7">7일</button>
@@ -544,9 +544,16 @@
             <li><b>GCP 빌링 export</b>: 1~24시간 지연.</li>
             <li><b>OpenAI Admin API</b>: 30~60분 지연.</li>
           </ul>
+          <b style="display:block;margin-top:12px">기간 정의</b>
+          <ul>
+            <li><b>오늘</b>: 오늘 0시(UTC) 이후 누적</li>
+            <li><b>최근 7일</b>: 오늘 포함 7일</li>
+            <li><b>이번 달</b>: 이번 달 1일 ~ 오늘</li>
+            <li><b>올해 누적 (YTD)</b>: <b>1월 1일 ~ 오늘</b>. <b>해가 바뀌면 자동으로 0부터 다시 시작</b>합니다 (지난해 데이터는 Reports → 월별/주별/일별 탭에 그대로 남음). 이는 빌링 / 회계의 표준 "Year to Date" 의미와 동일.</li>
+          </ul>
           <b style="display:block;margin-top:12px">자동화 / Live</b>
           <ul>
-            <li>GitHub Actions cron이 5분 주기로 자동 수집 (PC 무관, 24/7).</li>
+            <li>GitHub Actions cron이 5분 주기로 자동 수집 (PC 무관, 24/7). 단, GitHub은 schedule 트리거를 부하 시 5~15분 지연시킬 수 있음 — 대시보드 우측 상단 상태 핀이 8분 이상 지연 시 경고색으로 변합니다.</li>
             <li>대시보드는 30초마다 자동 갱신 — 새 데이터 도착 시 상태 표시기 펄스.</li>
             <li>두 소스의 수집 시각은 한 실행에서 통합되어 동일하게 표시됨.</li>
             <li>소스: <a href="https://github.com/productionkhu-tech/nanobanana-tracker" target="_blank">github.com/productionkhu-tech/nanobanana-tracker</a></li>
@@ -568,7 +575,7 @@ const $$ = (s) => Array.from(document.querySelectorAll(s));
 
 const state = {
   currency: localStorage.getItem('ccy') || 'USD',
-  reportsTab: 'monthly',
+  reportsTab: 'daily',
   dailyRange: 30,
   sharePeriod: 'month',                    // overview source-share toggle
   sortMonthly: { key:'month',      dir:1 },
@@ -680,6 +687,9 @@ function renderOverview() {
   $('#hl-week-alt').textContent = fmtAlt(c.week.cost, fx);
   setVal('hl-year', fmt(c.year.cost, fx), 'hl-year');
   $('#hl-year-alt').textContent = fmtAlt(c.year.cost, fx);
+  if ($('#hl-year-range') && d.year_start_date && d.today_date) {
+    $('#hl-year-range').textContent = `${d.year_start_date} ~ ${d.today_date}`;
+  }
 
   const mom = fmtDelta(c.month.cost, c.last_month.cost);
   setDelta($('#hl-mom'), mom);
@@ -711,7 +721,7 @@ function renderSourceShare() {
   if (!lastData) return;
   const fx = fxRate();
   const period = state.sharePeriod;
-  const labelMap = {today:'당일', month:'당월', year:'365일'};
+  const labelMap = {today:'당일', month:'당월', year:'올해 (YTD)'};
   const n = lastData.sources.nanobanana.totals[period].cost;
   const g = lastData.sources.openai.totals[period].cost;
   const total = n + g;
@@ -1048,6 +1058,7 @@ function bindAllSegs() {
 
 function setStatus(d) {
   const status = d.sync_status === 'ok';
+  // Reset; will re-apply warn/bad below based on age.
   $$('.status, .status-mirror').forEach(el => {
     el.classList.remove('warn','bad','pulse');
     if (!status) el.classList.add('bad');
@@ -1060,33 +1071,46 @@ function setStatus(d) {
   }
   lastSeenGen = d.generated_at;
 
-  // Build clearer label — make it obvious this is "when data was COLLECTED",
-  // not the wall clock. Updated every second so "X분 전" stays accurate.
+  // Pill shows RELATIVE time as primary ("X분 전 갱신"), with absolute time + current
+  // wall clock in tooltip. When stale (>8 min) goes warn, >20 min goes bad — making
+  // GitHub Actions cron lag visible to the user instead of silently showing old data.
   const ts = d.last_refresh_ts;
   const renderTimeLabels = () => {
     if (!ts) {
-      $('#statusText').textContent = status ? 'Live' : '오류';
+      const t = status ? 'Live' : '오류';
+      $('#statusText').textContent = t;
       $('#age').textContent = '—';
-      $$('.status-mirror').forEach(el => {
-        if (el.children.length >= 2) el.children[1].textContent = status ? 'Live' : '오류';
-      });
+      $$('.status-mirror').forEach(el => { if (el.children.length >= 2) el.children[1].textContent = t; });
       return;
     }
-    const t = new Date(ts*1000);
-    const hhmm = t.toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit'});
-    const sec = Math.max(0, Math.floor((Date.now() - ts*1000)/1000));
+    const collected = new Date(ts*1000);
+    const now = new Date();
+    const hhmm = collected.toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit', hour12:false});
+    const nowHHMM = now.toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit', hour12:false});
+    const sec = Math.max(0, Math.floor((now - collected)/1000));
     const m = Math.floor(sec/60);
-    const ago = sec < 60 ? '방금' : `${m}분 전`;
-    const text = `마지막 수집 ${hhmm} (${ago})`;
-    const tip = `5분마다 자동 수집 · 페이지는 30초마다 새 데이터 확인`;
+    const ago = sec < 60 ? '방금 갱신' : (m < 60 ? `${m}분 전 갱신` : `${Math.floor(m/60)}시간 ${m%60}분 전 갱신`);
+
+    // Apply staleness color *after* base reset above
+    const fresh = m <= 8;       // 5분 cron + 약간 여유
+    const stale = m > 8 && m <= 20;
+    const broken = m > 20;
+    $$('.status, .status-mirror').forEach(el => {
+      if (broken) el.classList.add('bad');
+      else if (stale) el.classList.add('warn');
+    });
+
+    const suffix = broken ? ' · 데이터 지연 중' : (stale ? ' · 갱신 늦어짐' : '');
+    const text = ago + suffix;
+    const tip = `데이터 수집: ${hhmm} · 현재: ${nowHHMM}\n5분마다 GitHub Actions가 자동 수집, 페이지는 30초마다 새 데이터 확인`;
     const pill = $('#statusPill');
-    if (pill) { pill.title = tip; }
+    if (pill) pill.title = tip;
     $('#statusText').textContent = text;
     $$('.status-mirror').forEach(el => {
       el.title = tip;
       if (el.children.length >= 2) el.children[1].textContent = text;
     });
-    $('#age').textContent = ago;
+    $('#age').textContent = ago.replace(' 갱신', '');
   };
   renderTimeLabels();
   if (window.__t) clearInterval(window.__t);
