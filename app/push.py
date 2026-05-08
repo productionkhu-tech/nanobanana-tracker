@@ -48,8 +48,9 @@ def run(cmd: list[str], *, cwd: Path, env: dict | None = None,
 def ensure_repo(token: str, user: str, repo: str) -> None:
     if not (REPO / ".git").exists():
         run(["git", "init", "-b", "main"], cwd=REPO)
-        run(["git", "config", "user.email", "tracker@local"], cwd=REPO)
-        run(["git", "config", "user.name", "nanobanana-tracker"], cwd=REPO)
+    # Always (re)set user identity — CI runners don't have it by default.
+    run(["git", "config", "user.email", "tracker@local"], cwd=REPO)
+    run(["git", "config", "user.name", "nanobanana-tracker"], cwd=REPO)
     # set/update remote with token-embedded URL (local-only file)
     remote_url = f"https://x-access-token:{token}@github.com/{user}/{repo}.git"
     existing = run(["git", "remote"], cwd=REPO).stdout.split()
