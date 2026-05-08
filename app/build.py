@@ -1,6 +1,7 @@
 """Read SQLite, build docs/data.json. Pure aggregation; no secrets touched."""
 from __future__ import annotations
 import json
+import re
 import sqlite3
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -15,6 +16,18 @@ NANOBANANA_SERVICES = {"Gemini API", "Vertex AI"}
 def is_image_line(line_item: str) -> bool:
     s = (line_item or "").lower()
     return s.startswith("gpt-image") or "dall-e" in s or s.startswith("dalle")
+
+
+def consolidate_openai_model(line_item: str) -> str:
+    """Reduce 'gpt-image-2-2026-04-21 image, output' → 'gpt-image-2' (single label per model)."""
+    s = (line_item or "").lower()
+    m = re.match(r"(gpt-image-\d+)", s)
+    if m:
+        return m.group(1)
+    m = re.match(r"(dall-e\s*\d+)", s)
+    if m:
+        return m.group(1).replace("  ", " ")
+    return line_item
 
 
 def utc_today_str() -> str:
@@ -35,7 +48,7 @@ def fetch_sync(c):
     return out
 
 
-def build_source_view(rows, source, include_pred, primary_label):
+def build_source_view(rows, source, include_pred, normalize_cat, primary_label):
     today = utc_today_str()
     today_dt = datetime.fromisoformat(today)
     yesterday = (today_dt - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -44,12 +57,12 @@ def build_source_view(rows, source, include_pred, primary_label):
     month_start = today_dt.replace(day=1).strftime("%Y-%m-%d")
     last_month_dt = (today_dt.replace(day=1) - timedelta(days=1)).replace(day=1)
     last_month_start = last_month_dt.strftime("%Y-%m-%d")
-    last_month_end = today_dt.replace(day=1).strftime("%Y-%m-%d")  # exclusive
+    last_month_end = today_dt.replace(day=1).strftime("%Y-%m-%d")
     year_start = today_dt.replace(month=1, day=1).strftime("%Y-%m-%d")
     year_ago = (today_dt - timedelta(days=364)).strftime("%Y-%m-%d")
 
     daily_cost: dict[str, float] = {}
-    by_category_total: dict[str, float] = {}
+    by_cat_cost: dict[str, dict[str, float]] = {}  # cat -> {date: cost}
 
     for r in rows:
         if r["source"] != source:
@@ -58,17 +71,20 @@ def build_source_view(rows, source, include_pred, primary_label):
             continue
         d = r["date"]
         cost = r["cost_usd"] or 0.0
+        cat = normalize_cat(r["category"])
         daily_cost[d] = daily_cost.get(d, 0.0) + cost
-        by_category_total[r["category"]] = by_category_total.get(r["category"], 0.0) + cost
+        by_cat_cost.setdefault(cat, {})
+        by_cat_cost[cat][d] = by_cat_cost[cat].get(d, 0.0) + cost
 
-    sumr = lambda lo, hi=None: sum(v for d, v in daily_cost.items() if d >= lo and (hi is None or d < hi))
+    sumr = lambda src, lo, hi=None: sum(v for d, v in src.items() if d >= lo and (hi is None or d < hi))
+
     today_cost = daily_cost.get(today, 0.0)
     yesterday_cost = daily_cost.get(yesterday, 0.0)
-    week_cost = sumr(week_start)
+    week_cost = sumr(daily_cost, week_start)
     last_week_same_cost = daily_cost.get(last_week_same_day, 0.0)
-    month_cost = sumr(month_start)
-    last_month_cost = sumr(last_month_start, last_month_end)
-    year_cost = sumr(year_start)
+    month_cost = sumr(daily_cost, month_start)
+    last_month_cost = sumr(daily_cost, last_month_start, last_month_end)
+    year_cost = sumr(daily_cost, year_start)
 
     series = []
     cur = datetime.fromisoformat(year_ago)
@@ -77,10 +93,27 @@ def build_source_view(rows, source, include_pred, primary_label):
         series.append({"date": d, "cost": round(daily_cost.get(d, 0.0), 4)})
         cur += timedelta(days=1)
 
-    cat_breakdown = sorted(
-        ({"category": k, "cost": round(v, 4)} for k, v in by_category_total.items()),
-        key=lambda x: -x["cost"],
-    )
+    # Per-category aggregates: today, this month, all-time, plus 30-day sparkline
+    cat_table = []
+    for cat, by_date in by_cat_cost.items():
+        ctoday = by_date.get(today, 0.0)
+        cmonth = sumr(by_date, month_start)
+        ctotal = sum(by_date.values())
+        spark_start_dt = today_dt - timedelta(days=29)
+        sparkline = []
+        cur2 = spark_start_dt
+        while cur2 <= today_dt:
+            d = cur2.strftime("%Y-%m-%d")
+            sparkline.append(round(by_date.get(d, 0.0), 4))
+            cur2 += timedelta(days=1)
+        cat_table.append({
+            "category": cat,
+            "today": round(ctoday, 4),
+            "month": round(cmonth, 4),
+            "total": round(ctotal, 4),
+            "sparkline": sparkline,
+        })
+    cat_table.sort(key=lambda x: -x["total"])
 
     days_into_month = today_dt.day
     last_day_of_month = (today_dt.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
@@ -99,7 +132,7 @@ def build_source_view(rows, source, include_pred, primary_label):
             "month_projection":   {"cost": round(month_projection, 4)},
             "year":               {"cost": round(year_cost, 4)},
         },
-        "category_breakdown": cat_breakdown,
+        "category_table": cat_table,
         "daily": series,
     }
 
@@ -113,9 +146,11 @@ def main() -> None:
 
     nano = build_source_view(rows, source="gcp",
                              include_pred=lambda cat: cat in NANOBANANA_SERVICES,
+                             normalize_cat=lambda cat: cat,
                              primary_label="NanoBanana (Gemini + Vertex)")
     openai = build_source_view(rows, source="openai",
                                include_pred=is_image_line,
+                               normalize_cat=consolidate_openai_model,
                                primary_label="GPT Image 2")
 
     combined = {}
@@ -125,7 +160,7 @@ def main() -> None:
             nano["totals"][k]["cost"] + openai["totals"][k]["cost"], 4)}
 
     payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "approx_krw_per_usd": 1450,
         "totals_combined": combined,
