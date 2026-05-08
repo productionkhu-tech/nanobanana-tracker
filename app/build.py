@@ -5,9 +5,10 @@ import sqlite3
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-DB_PATH = ROOT / "app" / "db.sqlite"
-OUT_PATH = ROOT / "public_repo" / "docs" / "data.json"
+# REPO root holds app/, docs/, .github/ — both locally and in CI.
+REPO = Path(__file__).resolve().parent.parent
+DB_PATH = REPO / "app" / "db.sqlite"
+OUT_PATH = REPO / "docs" / "data.json"
 
 NANOBANANA_SERVICES = {"Gemini API", "Vertex AI"}  # GCP service.description matches
 
