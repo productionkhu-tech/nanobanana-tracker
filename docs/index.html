@@ -10,14 +10,14 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
 <style>
   :root{
-    --bg:#f6f7f9; --surface:#ffffff; --surface-2:#f0f2f5;
+    --bg:#f6f7f9; --surface:#ffffff; --surface-2:#f0f2f5; --hover:#f8f9fb;
     --line:#e3e6eb; --line-2:#eef0f3;
     --text:#0f1419; --muted:#5b6473; --dim:#8b94a3;
-    --accent:#ea580c;          /* primary big numbers */
-    --accent-2:#0a72ff;
+    --accent:#ea580c;
     --good:#10a37f; --warn:#d97706; --bad:#dc2626;
     --nano:#7c3aed; --nano-soft:#f3eeff;
     --gpt:#10a37f;  --gpt-soft:#dcf6e8;
+    --highlight:#fff3e6;
 
     --sans:'Inter',-apple-system,'Segoe UI',Roboto,'Apple SD Gothic Neo','Pretendard','Malgun Gothic',sans-serif;
     --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
@@ -57,15 +57,34 @@
 
   /* ===== MAIN ===== */
   main{padding:28px 36px 80px;min-width:0}
-  .page-head{margin-bottom:18px;display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  .page-head{margin-bottom:18px;display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:14px}
   .page-head h2{font-size:22px;margin:0;font-weight:700;letter-spacing:-.02em}
-  .page-head .pageinfo{color:var(--muted);font-size:12px;font-family:var(--mono)}
-  .page-head .status{display:inline-flex;align-items:center;gap:6px;
-    padding:5px 11px;border-radius:6px;background:var(--surface);
-    border:1px solid var(--line);font-size:12px;color:var(--muted);font-family:var(--mono)}
-  .status .dot{width:6px;height:6px;border-radius:50%;background:var(--good)}
+  .page-head .pageinfo{color:var(--muted);font-size:12px;font-family:var(--mono);margin-top:2px}
+  .head-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+  /* currency toggle */
+  .ccy{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface)}
+  .ccy button{background:transparent;border:0;padding:6px 12px;font-size:12px;
+    cursor:pointer;font-family:var(--mono);color:var(--muted);font-weight:500}
+  .ccy button.on{background:var(--accent);color:#fff}
+
+  .status{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;
+    border-radius:6px;background:var(--surface);border:1px solid var(--line);
+    font-size:12px;color:var(--muted);font-family:var(--mono)}
+  .status .dot{width:7px;height:7px;border-radius:50%;background:var(--good);
+    transition:transform .3s}
   .status.warn .dot{background:var(--warn)}
   .status.bad  .dot{background:var(--bad)}
+  @keyframes data-pulse {
+    0%{transform:scale(1);box-shadow:0 0 0 0 rgba(16,163,127,.6)}
+    50%{transform:scale(1.7);box-shadow:0 0 0 8px rgba(16,163,127,0)}
+    100%{transform:scale(1);box-shadow:0 0 0 0 rgba(16,163,127,0)}
+  }
+  .status.pulse .dot{animation:data-pulse 1.2s ease-out}
+  @keyframes value-pulse {
+    0%{background:var(--highlight)} 100%{background:transparent}
+  }
+  .v-pulse{animation:value-pulse 1.5s ease-out}
 
   .tab{display:none}
   .tab.on{display:block}
@@ -76,24 +95,26 @@
   .hl-row1{display:flex;align-items:flex-start;gap:24px;flex-wrap:wrap;margin-bottom:22px}
   .hl-row1 .label{color:var(--muted);font-size:12px;letter-spacing:.04em;
     font-family:var(--mono);text-transform:uppercase;margin-bottom:6px}
-  .hl-row1 .big{font-size:48px;font-weight:700;letter-spacing:-.025em;line-height:1;color:var(--accent)}
-  .hl-row1 .krw{color:var(--muted);font-size:18px;font-weight:500;margin-left:14px}
+  .hl-row1 .big{font-size:48px;font-weight:700;letter-spacing:-.025em;line-height:1;color:var(--accent);
+    border-radius:8px;padding:2px 8px;margin:-2px -8px;display:inline-block}
+  .hl-row1 .alt{color:var(--muted);font-size:18px;font-weight:500;margin-left:14px}
   .hl-row1 .delta-block{margin-left:auto;text-align:right}
   .hl-row1 .delta-block .label{margin-bottom:4px;text-align:right}
   .hl-row1 .delta-block .v{font-size:18px;font-weight:600}
   .hl-row1 .delta-block .v.pos{color:var(--bad)}
   .hl-row1 .delta-block .v.neg{color:var(--good)}
 
-  .hl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;
+  .hl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;
     border-top:1px solid var(--line);padding-top:18px}
-  @media (max-width:780px){.hl-grid{grid-template-columns:repeat(2,1fr);gap:18px;padding-top:18px}}
-  .hl-cell{padding:0 24px;border-right:1px solid var(--line)}
+  @media (max-width:780px){.hl-grid{grid-template-columns:1fr;gap:18px;padding-top:18px}}
+  .hl-cell{padding:0 28px;border-right:1px solid var(--line)}
   .hl-cell:first-child{padding-left:0}
   .hl-cell:last-child{border-right:0;padding-right:0}
   @media (max-width:780px){.hl-cell{border-right:0;padding:0}}
   .hl-cell .l{color:var(--muted);font-size:11px;letter-spacing:.04em;
     font-family:var(--mono);text-transform:uppercase}
-  .hl-cell .v{font-size:24px;font-weight:700;margin-top:4px;letter-spacing:-.015em}
+  .hl-cell .v{font-size:26px;font-weight:700;margin-top:6px;letter-spacing:-.015em;
+    border-radius:5px;padding:2px 6px;margin-left:-6px;display:inline-block}
   .hl-cell .k{color:var(--muted);font-size:12px;font-weight:500;margin-top:1px}
   .hl-cell .d{color:var(--muted);font-size:11.5px;margin-top:4px;font-family:var(--mono)}
   .hl-cell .d.pos{color:var(--bad)}
@@ -107,7 +128,7 @@
 
   .card{background:var(--surface);border:1px solid var(--line);border-radius:14px}
   .card-head{padding:18px 22px;display:flex;align-items:center;gap:10px;
-    border-bottom:1px solid var(--line-2)}
+    border-bottom:1px solid var(--line-2);flex-wrap:wrap}
   .card-head h3{margin:0;font-size:14px;font-weight:600;font-family:var(--mono)}
   .card-head .tag{font-size:10.5px;padding:2px 7px;border-radius:4px;font-weight:600;
     text-transform:uppercase;letter-spacing:.04em;font-family:var(--mono)}
@@ -121,11 +142,14 @@
     padding:5px 11px;font-size:12px;cursor:pointer;font-weight:500;font-family:var(--mono)}
   .seg button.on{background:var(--surface);color:var(--text);box-shadow:0 1px 0 var(--line)}
 
+  .seg.tabs{margin-left:0;margin-bottom:14px}
+
   .num-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
   .num{}
   .num .l{color:var(--muted);font-size:10.5px;letter-spacing:.04em;
     font-family:var(--mono);text-transform:uppercase}
-  .num .v{font-size:24px;font-weight:700;margin-top:3px;letter-spacing:-.015em;color:var(--accent)}
+  .num .v{font-size:24px;font-weight:700;margin-top:3px;letter-spacing:-.015em;color:var(--accent);
+    border-radius:5px;padding:2px 6px;margin-left:-6px;display:inline-block}
   .num .k{color:var(--muted);font-size:11.5px;margin-top:1px}
   .num .d{font-size:11.5px;margin-top:3px;color:var(--muted);font-family:var(--mono)}
   .num .d.pos{color:var(--bad)}
@@ -134,17 +158,30 @@
   .chart-wrap{position:relative;height:240px}
   .chart-wrap.tall{height:280px}
 
+  /* ===== TABLES ===== */
   table.cat{width:100%;border-collapse:collapse;font-size:13px}
   table.cat th{text-align:left;color:var(--dim);font-size:10.5px;
     letter-spacing:.04em;font-weight:500;font-family:var(--mono);
-    text-transform:uppercase;padding:8px 10px;border-bottom:1px solid var(--line-2)}
+    text-transform:uppercase;padding:10px 12px;border-bottom:1px solid var(--line-2);
+    background:var(--surface-2);position:sticky;top:0;cursor:pointer;user-select:none}
   table.cat th.num,table.cat td.num{text-align:right;font-variant-numeric:tabular-nums}
-  table.cat td{padding:11px 10px;border-bottom:1px solid var(--line-2);color:var(--text)}
+  table.cat th .ord{color:var(--accent);margin-left:4px;font-size:9px}
+  table.cat td{padding:11px 12px;border-bottom:1px solid var(--line-2);color:var(--text)}
   table.cat tr:last-child td{border-bottom:0}
+  table.cat tr.now td{background:var(--highlight)}
+  table.cat tr:hover td{background:var(--hover)}
   table.cat .name{font-weight:500}
   table.cat .pct{color:var(--muted);font-size:11.5px;margin-left:6px;font-family:var(--mono)}
   table.cat .dot-c{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:middle}
   .spark{vertical-align:middle}
+
+  /* button */
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;
+    border-radius:6px;border:1px solid var(--line);background:var(--surface);
+    color:var(--text);font-size:12px;font-family:var(--mono);cursor:pointer;font-weight:500}
+  .btn:hover{background:var(--surface-2)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.primary:hover{background:#c2410c}
 
   .legend{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--muted);font-family:var(--mono)}
   .legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle}
@@ -161,13 +198,14 @@
   .notes b{color:var(--text)}
   .notes ul{margin:6px 0 0;padding-left:18px}
   .notes li{margin-bottom:3px}
+
+  /* table scroll wrapper */
+  .tbl-scroll{max-height:560px;overflow:auto;border:1px solid var(--line);border-radius:10px}
 </style>
 </head>
 <body>
 
 <div class="app">
-
-  <!-- ===== SIDEBAR ===== -->
   <aside class="sidebar">
     <div class="brand">
       <div class="logo">¢</div>
@@ -180,7 +218,7 @@
       <div class="nav-item on" data-tab="overview"><span class="chev">›</span>overview</div>
       <div class="nav-item"     data-tab="nano"><span class="chev">·</span>nanobanana</div>
       <div class="nav-item"     data-tab="openai"><span class="chev">·</span>gpt image 2</div>
-      <div class="nav-item"     data-tab="history"><span class="chev">·</span>history</div>
+      <div class="nav-item"     data-tab="reports"><span class="chev">·</span>reports</div>
       <div class="nav-item"     data-tab="about"><span class="chev">·</span>about</div>
     </nav>
     <div class="footer">
@@ -189,17 +227,19 @@
     </div>
   </aside>
 
-  <!-- ===== MAIN ===== -->
   <main>
 
-    <!-- ===== TAB: Overview ===== -->
+    <!-- ===== OVERVIEW ===== -->
     <section class="tab on" id="tab-overview">
       <div class="page-head">
         <div>
           <h2>Overview</h2>
-          <div class="pageinfo">두 소스 합산 · 실시간 비용 추적</div>
+          <div class="pageinfo">두 소스 합산 · 30초마다 자동 갱신</div>
         </div>
-        <span id="statusPill" class="status"><span class="dot"></span><span id="statusText">정상</span></span>
+        <div class="head-actions">
+          <div class="ccy" id="ccy"><button data-c="USD" class="on">USD</button><button data-c="KRW">KRW</button></div>
+          <span id="statusPill" class="status"><span class="dot"></span><span id="statusText">Live</span></span>
+        </div>
       </div>
 
       <section class="headline">
@@ -207,8 +247,8 @@
           <div>
             <div class="label">이번 달 누적</div>
             <div>
-              <span class="big" id="hl-month">$—</span>
-              <span class="krw" id="hl-month-krw">—</span>
+              <span class="big" id="hl-month">—</span>
+              <span class="alt" id="hl-month-alt">—</span>
             </div>
           </div>
           <div class="delta-block">
@@ -219,26 +259,20 @@
         <div class="hl-grid">
           <div class="hl-cell">
             <div class="l">today</div>
-            <div class="v" id="hl-today">$—</div>
-            <div class="k" id="hl-today-krw">—</div>
+            <div class="v" id="hl-today">—</div>
+            <div class="k" id="hl-today-alt">—</div>
             <div class="d" id="hl-today-d">—</div>
           </div>
           <div class="hl-cell">
             <div class="l">last 7 days</div>
-            <div class="v" id="hl-week">$—</div>
-            <div class="k" id="hl-week-krw">—</div>
-            <div class="d">vs 지난 7일</div>
-          </div>
-          <div class="hl-cell">
-            <div class="l">end-of-month proj.</div>
-            <div class="v" id="hl-projection">$—</div>
-            <div class="k" id="hl-projection-krw">—</div>
-            <div class="d">현재 추세 기준</div>
+            <div class="v" id="hl-week">—</div>
+            <div class="k" id="hl-week-alt">—</div>
+            <div class="d">최근 7일 합</div>
           </div>
           <div class="hl-cell">
             <div class="l">last 365 days</div>
-            <div class="v" id="hl-year">$—</div>
-            <div class="k" id="hl-year-krw">—</div>
+            <div class="v" id="hl-year">—</div>
+            <div class="k" id="hl-year-alt">—</div>
             <div class="d">12개월 누적</div>
           </div>
         </div>
@@ -280,9 +314,9 @@
           <div class="card-head"><span class="tag nano">NanoBanana</span><h3>Gemini API + Vertex AI</h3></div>
           <div class="card-body">
             <div class="num-strip">
-              <div class="num"><div class="l">today</div><div class="v" id="ov-nano-today">$—</div><div class="k" id="ov-nano-today-krw">—</div></div>
-              <div class="num"><div class="l">this month</div><div class="v" id="ov-nano-month">$—</div><div class="k" id="ov-nano-month-krw">—</div></div>
-              <div class="num"><div class="l">365d total</div><div class="v" id="ov-nano-year">$—</div><div class="k" id="ov-nano-year-krw">—</div></div>
+              <div class="num"><div class="l">today</div><div class="v" id="ov-nano-today">—</div><div class="k" id="ov-nano-today-alt">—</div></div>
+              <div class="num"><div class="l">this month</div><div class="v" id="ov-nano-month">—</div><div class="k" id="ov-nano-month-alt">—</div></div>
+              <div class="num"><div class="l">365d total</div><div class="v" id="ov-nano-year">—</div><div class="k" id="ov-nano-year-alt">—</div></div>
             </div>
           </div>
         </section>
@@ -290,31 +324,34 @@
           <div class="card-head"><span class="tag gpt">GPT Image 2</span><h3>OpenAI Image API</h3></div>
           <div class="card-body">
             <div class="num-strip">
-              <div class="num"><div class="l">today</div><div class="v" id="ov-oa-today">$—</div><div class="k" id="ov-oa-today-krw">—</div></div>
-              <div class="num"><div class="l">this month</div><div class="v" id="ov-oa-month">$—</div><div class="k" id="ov-oa-month-krw">—</div></div>
-              <div class="num"><div class="l">365d total</div><div class="v" id="ov-oa-year">$—</div><div class="k" id="ov-oa-year-krw">—</div></div>
+              <div class="num"><div class="l">today</div><div class="v" id="ov-oa-today">—</div><div class="k" id="ov-oa-today-alt">—</div></div>
+              <div class="num"><div class="l">this month</div><div class="v" id="ov-oa-month">—</div><div class="k" id="ov-oa-month-alt">—</div></div>
+              <div class="num"><div class="l">365d total</div><div class="v" id="ov-oa-year">—</div><div class="k" id="ov-oa-year-alt">—</div></div>
             </div>
           </div>
         </section>
       </div>
     </section>
 
-    <!-- ===== TAB: NanoBanana ===== -->
+    <!-- ===== NANOBANANA ===== -->
     <section class="tab" id="tab-nano">
       <div class="page-head">
         <div><h2>NanoBanana</h2><div class="pageinfo">Gemini API + Vertex AI · GCP 빌링 export 기반</div></div>
+        <div class="head-actions">
+          <div class="ccy ccy-mirror"><button data-c="USD" class="on">USD</button><button data-c="KRW">KRW</button></div>
+          <span class="status status-mirror"><span class="dot"></span>Live</span>
+        </div>
       </div>
       <section class="card">
         <div class="card-head"><span class="tag nano">NanoBanana</span><h3>요약</h3></div>
         <div class="card-body">
           <div class="num-strip">
-            <div class="num"><div class="l">today</div><div class="v" id="n-today">$—</div><div class="k" id="n-today-krw">—</div><div class="d" id="n-today-d">—</div></div>
-            <div class="num"><div class="l">this month</div><div class="v" id="n-month">$—</div><div class="k" id="n-month-krw">—</div><div class="d" id="n-month-d">—</div></div>
-            <div class="num"><div class="l">365d total</div><div class="v" id="n-year">$—</div><div class="k" id="n-year-krw">—</div></div>
+            <div class="num"><div class="l">today</div><div class="v" id="n-today">—</div><div class="k" id="n-today-alt">—</div><div class="d" id="n-today-d">—</div></div>
+            <div class="num"><div class="l">this month</div><div class="v" id="n-month">—</div><div class="k" id="n-month-alt">—</div><div class="d" id="n-month-d">—</div></div>
+            <div class="num"><div class="l">365d total</div><div class="v" id="n-year">—</div><div class="k" id="n-year-alt">—</div></div>
           </div>
         </div>
       </section>
-
       <section class="card" style="margin-top:18px">
         <div class="card-head">
           <h3>일별 비용</h3>
@@ -327,9 +364,9 @@
         </div>
         <div class="card-body"><div class="chart-wrap"><canvas id="chart-nano"></canvas></div></div>
       </section>
-
       <section class="card" style="margin-top:18px">
-        <div class="card-head"><h3>서비스별 사용 (정렬: 누적 내림차순)</h3></div>
+        <div class="card-head"><h3>서비스별 사용 (정렬: 누적 내림차순)</h3>
+          <button class="btn" style="margin-left:auto" id="csv-nano-cat">CSV 내보내기</button></div>
         <div class="card-body">
           <table class="cat">
             <thead><tr><th>서비스</th><th class="num">today</th><th class="num">this month</th><th class="num">total</th><th class="num">last 30d</th></tr></thead>
@@ -339,22 +376,25 @@
       </section>
     </section>
 
-    <!-- ===== TAB: GPT Image 2 ===== -->
+    <!-- ===== GPT IMAGE 2 ===== -->
     <section class="tab" id="tab-openai">
       <div class="page-head">
-        <div><h2>GPT Image 2</h2><div class="pageinfo">OpenAI Admin API 기반 · 모델 단위로 묶어서 표시</div></div>
+        <div><h2>GPT Image 2</h2><div class="pageinfo">OpenAI Admin API 기반 · 모델 단위로 묶음</div></div>
+        <div class="head-actions">
+          <div class="ccy ccy-mirror"><button data-c="USD" class="on">USD</button><button data-c="KRW">KRW</button></div>
+          <span class="status status-mirror"><span class="dot"></span>Live</span>
+        </div>
       </div>
       <section class="card">
         <div class="card-head"><span class="tag gpt">GPT Image 2</span><h3>요약</h3></div>
         <div class="card-body">
           <div class="num-strip">
-            <div class="num"><div class="l">today</div><div class="v" id="g-today">$—</div><div class="k" id="g-today-krw">—</div><div class="d" id="g-today-d">—</div></div>
-            <div class="num"><div class="l">this month</div><div class="v" id="g-month">$—</div><div class="k" id="g-month-krw">—</div><div class="d" id="g-month-d">—</div></div>
-            <div class="num"><div class="l">365d total</div><div class="v" id="g-year">$—</div><div class="k" id="g-year-krw">—</div></div>
+            <div class="num"><div class="l">today</div><div class="v" id="g-today">—</div><div class="k" id="g-today-alt">—</div><div class="d" id="g-today-d">—</div></div>
+            <div class="num"><div class="l">this month</div><div class="v" id="g-month">—</div><div class="k" id="g-month-alt">—</div><div class="d" id="g-month-d">—</div></div>
+            <div class="num"><div class="l">365d total</div><div class="v" id="g-year">—</div><div class="k" id="g-year-alt">—</div></div>
           </div>
         </div>
       </section>
-
       <section class="card" style="margin-top:18px">
         <div class="card-head">
           <h3>일별 비용</h3>
@@ -367,9 +407,9 @@
         </div>
         <div class="card-body"><div class="chart-wrap"><canvas id="chart-openai"></canvas></div></div>
       </section>
-
       <section class="card" style="margin-top:18px">
-        <div class="card-head"><h3>모델별 사용 (정렬: 누적 내림차순)</h3></div>
+        <div class="card-head"><h3>모델별 사용 (정렬: 누적 내림차순)</h3>
+          <button class="btn" style="margin-left:auto" id="csv-openai-cat">CSV 내보내기</button></div>
         <div class="card-body">
           <table class="cat">
             <thead><tr><th>모델</th><th class="num">today</th><th class="num">this month</th><th class="num">total</th><th class="num">last 30d</th></tr></thead>
@@ -379,49 +419,107 @@
       </section>
     </section>
 
-    <!-- ===== TAB: History ===== -->
-    <section class="tab" id="tab-history">
-      <div class="page-head"><div><h2>History</h2><div class="pageinfo">월간 추세 · 12개월</div></div></div>
-      <section class="card">
-        <div class="card-head"><h3>월별 비용 (소스별 누적)</h3></div>
+    <!-- ===== REPORTS ===== -->
+    <section class="tab" id="tab-reports">
+      <div class="page-head">
+        <div><h2>Reports</h2><div class="pageinfo">표 중심 · 정렬·CSV 내보내기 가능</div></div>
+        <div class="head-actions">
+          <div class="ccy ccy-mirror"><button data-c="USD" class="on">USD</button><button data-c="KRW">KRW</button></div>
+          <span class="status status-mirror"><span class="dot"></span>Live</span>
+        </div>
+      </div>
+
+      <div class="seg tabs" id="reports-tabs">
+        <button data-r="monthly" class="on">월별</button>
+        <button data-r="daily">일별</button>
+        <button data-r="categories">카테고리 (전체 합)</button>
+      </div>
+
+      <!-- monthly -->
+      <section class="card" id="rep-monthly">
+        <div class="card-head"><h3>월별 합산 (최근 12개월)</h3>
+          <button class="btn" style="margin-left:auto" id="csv-monthly">CSV 내보내기</button></div>
         <div class="card-body">
-          <div class="legend" style="margin-bottom:8px">
-            <span><span class="sw" style="background:var(--nano)"></span>NanoBanana</span>
-            <span><span class="sw" style="background:var(--gpt)"></span>GPT Image 2</span>
+          <div class="chart-wrap" style="height:220px;margin-bottom:14px"><canvas id="chart-monthly"></canvas></div>
+          <div class="tbl-scroll">
+            <table class="cat" id="tblMonthly">
+              <thead><tr>
+                <th data-sort="month">월<span class="ord"></span></th>
+                <th class="num" data-sort="nano">NanoBanana<span class="ord"></span></th>
+                <th class="num" data-sort="gpt">GPT Image 2<span class="ord"></span></th>
+                <th class="num" data-sort="total">합계<span class="ord"></span></th>
+              </tr></thead>
+              <tbody id="tbl-monthly"></tbody>
+            </table>
           </div>
-          <div class="chart-wrap tall"><canvas id="chart-monthly"></canvas></div>
         </div>
       </section>
-      <section class="card" style="margin-top:18px">
-        <div class="card-head"><h3>월별 합계 표</h3></div>
+
+      <!-- daily -->
+      <section class="card" id="rep-daily" style="display:none">
+        <div class="card-head"><h3>일별 합산</h3>
+          <div class="seg" id="seg-daily-range" style="margin-left:0">
+            <button data-r="7">7일</button>
+            <button data-r="30" class="on">30일</button>
+            <button data-r="90">90일</button>
+            <button data-r="365">12개월</button>
+          </div>
+          <button class="btn" style="margin-left:auto" id="csv-daily">CSV 내보내기</button></div>
         <div class="card-body">
-          <table class="cat">
-            <thead><tr><th>월</th><th class="num">NanoBanana</th><th class="num">GPT Image 2</th><th class="num">합계</th></tr></thead>
-            <tbody id="tbl-monthly"></tbody>
+          <div class="tbl-scroll">
+            <table class="cat" id="tblDaily">
+              <thead><tr>
+                <th data-sort="date">날짜<span class="ord"></span></th>
+                <th class="num" data-sort="nano">NanoBanana<span class="ord"></span></th>
+                <th class="num" data-sort="gpt">GPT Image 2<span class="ord"></span></th>
+                <th class="num" data-sort="total">합계<span class="ord"></span></th>
+              </tr></thead>
+              <tbody id="tbl-daily"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- categories -->
+      <section class="card" id="rep-categories" style="display:none">
+        <div class="card-head"><h3>카테고리 통합 랭킹 (전체 누적)</h3>
+          <button class="btn" style="margin-left:auto" id="csv-categories">CSV 내보내기</button></div>
+        <div class="card-body">
+          <table class="cat" id="tblCat">
+            <thead><tr>
+              <th data-sort="source">소스<span class="ord"></span></th>
+              <th data-sort="category">카테고리<span class="ord"></span></th>
+              <th class="num" data-sort="today">today<span class="ord"></span></th>
+              <th class="num" data-sort="month">this month<span class="ord"></span></th>
+              <th class="num" data-sort="total">total<span class="ord">▼</span></th>
+              <th class="num">share</th>
+            </tr></thead>
+            <tbody id="tbl-categories"></tbody>
           </table>
         </div>
       </section>
     </section>
 
-    <!-- ===== TAB: About ===== -->
+    <!-- ===== ABOUT ===== -->
     <section class="tab" id="tab-about">
       <div class="page-head"><div><h2>About</h2><div class="pageinfo">읽는 법 · 기술 정보</div></div></div>
       <section class="card"><div class="card-body">
         <div class="notes">
           <b>비용 측정</b>
           <ul>
-            <li>모든 비용은 <b>USD 정가(list)</b> 기준 — 실제 호출이 발생시킨 사용량 측정값. <b>Free Tier 차감 전</b> 금액입니다.</li>
-            <li>원화는 1 USD ≈ <span id="fx-rate">1,450</span>원으로 환산한 추정값. 실제 GCP 청구 KRW와는 환율·세금으로 다를 수 있습니다.</li>
+            <li>모든 비용은 <b>USD 정가(list)</b> 기준 — 호출이 발생시킨 사용량 측정값. <b>Free Tier 차감 전</b>.</li>
+            <li>원화는 1 USD ≈ <span id="fx-rate">1,450</span>원으로 환산. 실제 GCP 청구 KRW와는 환율·세금 차이 존재.</li>
           </ul>
           <b style="display:block;margin-top:12px">데이터 지연</b>
           <ul>
-            <li><b>GCP 빌링 export</b>: 1~24시간 지연. 오늘 호출은 점진적으로 합산됩니다.</li>
-            <li><b>OpenAI Admin API</b>: 30~60분 지연. 막 호출한 건은 곧 반영됩니다.</li>
+            <li><b>GCP 빌링 export</b>: 1~24시간 지연.</li>
+            <li><b>OpenAI Admin API</b>: 30~60분 지연.</li>
           </ul>
-          <b style="display:block;margin-top:12px">자동화</b>
+          <b style="display:block;margin-top:12px">자동화 / Live</b>
           <ul>
-            <li>GitHub Actions cron이 5분 주기로 자동 실행 (사용자 PC 무관, 24/7 동작).</li>
-            <li>두 소스 수집은 한 번의 실행에서 순차 진행되며, 화면에 표시되는 시각은 통합됩니다.</li>
+            <li>GitHub Actions cron이 5분 주기로 자동 수집 (PC 무관, 24/7).</li>
+            <li>대시보드는 30초마다 자동 갱신 — 새 데이터 도착 시 상태 표시기 펄스.</li>
+            <li>두 소스의 수집 시각은 한 실행에서 통합되어 동일하게 표시됨.</li>
             <li>소스: <a href="https://github.com/productionkhu-tech/nanobanana-tracker" target="_blank">github.com/productionkhu-tech/nanobanana-tracker</a></li>
           </ul>
         </div>
@@ -434,33 +532,59 @@
 <script>
 const NANO = '#7c3aed', NANO_FILL = 'rgba(124,58,237,.10)';
 const GPT  = '#10a37f', GPT_FILL  = 'rgba(16,163,127,.10)';
-const ACCENT = '#ea580c';
-const REFETCH_MS = 60_000;
+const REFETCH_MS = 30_000;
 
 const $  = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
-const usd = (n) => '$' + (Math.round((n||0)*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-const krw = (n, fx) => '₩' + Math.round((n||0)*fx).toLocaleString('ko-KR');
 
+const state = {
+  currency: localStorage.getItem('ccy') || 'USD',
+  reportsTab: 'monthly',
+  dailyRange: 30,
+  sortMonthly: { key:'month', dir:1 },
+  sortDaily:   { key:'date',  dir:-1 },
+  sortCat:     { key:'total', dir:-1 },
+};
 let charts = {};
 let lastData = null;
+let lastSeenGen = null;
+let prevValues = {};
 let ranges = { 'chart-overview': 7, 'chart-nano': 7, 'chart-openai': 7 };
+
+const usd = (n) => '$' + (Math.round((n||0)*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const krw = (n, fx) => '₩' + Math.round((n||0)*fx).toLocaleString('ko-KR');
+const fmt = (n, fx) => state.currency === 'USD' ? usd(n) : krw(n, fx);
+const fmtAlt = (n, fx) => state.currency === 'USD' ? '약 ' + krw(n, fx) : usd(n);
 
 function fmtDelta(cur, prev) {
   if (prev === 0 && cur === 0) return {text:'변화 없음', cls:''};
-  if (prev === 0) return {text:'+' + usd(cur) + ' (신규)', cls:'pos'};
+  if (prev === 0) return {text:'+' + (state.currency === 'USD' ? usd(cur) : krw(cur, fxRate())) + ' (신규)', cls:'pos'};
   const d = cur - prev;
   const pct = (d / Math.max(0.01, Math.abs(prev))) * 100;
   const sign = d > 0 ? '+' : '';
   const cls = Math.abs(d) < 0.01 ? '' : (d > 0 ? 'pos' : 'neg');
-  return {text:`${sign}${usd(d)} (${sign}${pct.toFixed(0)}%)`, cls};
+  return {text:`${sign}${state.currency === 'USD' ? usd(d) : krw(d, fxRate())} (${sign}${pct.toFixed(0)}%)`, cls};
 }
 function setDelta(el, dl) {
   el.textContent = dl.text;
   el.classList.remove('pos','neg');
   if (dl.cls) el.classList.add(dl.cls);
 }
+function fxRate() { return lastData?.approx_krw_per_usd || 1450; }
 
+// Set value with optional pulse on change
+function setVal(elId, value, key) {
+  const el = $('#' + elId); if (!el) return;
+  const old = prevValues[key];
+  el.textContent = value;
+  if (old !== undefined && old !== value) {
+    el.classList.remove('v-pulse'); void el.offsetWidth;
+    el.classList.add('v-pulse');
+  }
+  prevValues[key] = value;
+}
+
+// === Chart helpers ===
 function lineChart(canvasId, daily, days, datasets) {
   const series = daily.slice(-days);
   const ctx = document.getElementById(canvasId).getContext('2d');
@@ -469,14 +593,12 @@ function lineChart(canvasId, daily, days, datasets) {
     type: 'line',
     data: { labels: series.map(s => s.date.slice(5)), datasets: datasets(series) },
     options: {
-      maintainAspectRatio: false,
-      animation: { duration: 250 },
+      maintainAspectRatio: false, animation: { duration: 250 },
       interaction: { intersect: false, mode: 'index' },
       plugins: {
         legend: { display: false },
         tooltip: {
-          callbacks: { label: (ctx) => ctx.dataset.label + ': ' + usd(ctx.parsed.y) +
-            ' · 약 ' + krw(ctx.parsed.y, lastData.approx_krw_per_usd) },
+          callbacks: { label: (ctx) => ctx.dataset.label + ': ' + fmt(ctx.parsed.y, fxRate()) },
           backgroundColor: '#0f1419', titleColor: '#fff', bodyColor: '#fff',
           padding: 10, displayColors: true, boxPadding: 4,
         },
@@ -484,7 +606,7 @@ function lineChart(canvasId, daily, days, datasets) {
       scales: {
         x: { ticks:{color:'#5b6473',maxRotation:0,autoSkip:true,maxTicksLimit:8,font:{size:11}},
              grid:{display:false}, border:{display:false} },
-        y: { ticks:{color:'#5b6473',callback:(v)=>usd(v),font:{size:11}},
+        y: { ticks:{color:'#5b6473',callback:(v)=>fmt(v, fxRate()),font:{size:11}},
              grid:{color:'#eef0f3'}, border:{display:false}, beginAtZero:true },
       },
     },
@@ -503,26 +625,6 @@ function sparkSvg(values, color) {
   </svg>`;
 }
 
-function renderTable(elId, items, color) {
-  const el = $('#' + elId); el.innerHTML = '';
-  const total = items.reduce((s, it) => s + it.total, 0);
-  if (!items.length || total === 0) {
-    el.innerHTML = `<tr><td colspan="5" style="color:var(--dim);text-align:center;padding:18px">데이터 없음</td></tr>`;
-    return;
-  }
-  for (const it of items) {
-    const pct = total > 0 ? (it.total / total) * 100 : 0;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><span class="dot-c" style="background:${color}"></span><span class="name">${it.category}</span><span class="pct">${pct.toFixed(1)}%</span></td>
-      <td class="num">${usd(it.today)}</td>
-      <td class="num">${usd(it.month)}</td>
-      <td class="num"><b>${usd(it.total)}</b></td>
-      <td class="num">${sparkSvg(it.sparkline, color)}</td>`;
-    el.appendChild(tr);
-  }
-}
-
 function donut(canvasId, items, total) {
   const ctx = document.getElementById(canvasId).getContext('2d');
   if (charts[canvasId]) charts[canvasId].destroy();
@@ -531,34 +633,28 @@ function donut(canvasId, items, total) {
     data: { labels: items.map(i=>i.label), datasets:[{ data: items.map(i=>i.value), backgroundColor: items.map(i=>i.color), borderColor: '#fff', borderWidth: 2 }] },
     options: { maintainAspectRatio:false, cutout:'68%',
       plugins: { legend:{display:false},
-        tooltip:{ callbacks:{ label: (c) => c.label + ': ' + usd(c.parsed) + ' (' + ((c.parsed/total)*100).toFixed(1) + '%)' } } } },
+        tooltip:{ callbacks:{ label: (c) => c.label + ': ' + fmt(c.parsed, fxRate()) + ' (' + ((c.parsed/Math.max(total,0.0001))*100).toFixed(1) + '%)' } } } },
   });
 }
 
-function renderOverview(d) {
-  const fx = d.approx_krw_per_usd || 1450;
-  const c = d.totals_combined;
-  $('#hl-month').textContent = usd(c.month.cost);
-  $('#hl-month-krw').textContent = '· 약 ' + krw(c.month.cost, fx);
-  $('#hl-today').textContent = usd(c.today.cost);
-  $('#hl-today-krw').textContent = '약 ' + krw(c.today.cost, fx);
-  $('#hl-week').textContent = usd(c.week.cost);
-  $('#hl-week-krw').textContent = '약 ' + krw(c.week.cost, fx);
-  $('#hl-projection').textContent = usd(c.month_projection.cost);
-  $('#hl-projection-krw').textContent = '약 ' + krw(c.month_projection.cost, fx);
-  $('#hl-year').textContent = usd(c.year.cost);
-  $('#hl-year-krw').textContent = '약 ' + krw(c.year.cost, fx);
+// === renders ===
+function renderOverview() {
+  const d = lastData; if (!d) return;
+  const fx = fxRate(); const c = d.totals_combined;
+  setVal('hl-month', fmt(c.month.cost, fx), 'hl-month');
+  $('#hl-month-alt').textContent = '· ' + fmtAlt(c.month.cost, fx);
+  setVal('hl-today', fmt(c.today.cost, fx), 'hl-today');
+  $('#hl-today-alt').textContent = fmtAlt(c.today.cost, fx);
+  setVal('hl-week', fmt(c.week.cost, fx), 'hl-week');
+  $('#hl-week-alt').textContent = fmtAlt(c.week.cost, fx);
+  setVal('hl-year', fmt(c.year.cost, fx), 'hl-year');
+  $('#hl-year-alt').textContent = fmtAlt(c.year.cost, fx);
 
-  // mom delta
   const mom = fmtDelta(c.month.cost, c.last_month.cost);
-  const momEl = $('#hl-mom'); momEl.textContent = mom.text;
-  momEl.classList.remove('pos','neg'); if (mom.cls) momEl.classList.add(mom.cls);
-
-  // today vs same DoW last week
+  setDelta($('#hl-mom'), mom);
   const td = fmtDelta(c.today.cost, c.last_week_same_day.cost);
   setDelta($('#hl-today-d'), {text: td.text + ' vs 지난주', cls: td.cls});
 
-  // overview chart: stacked area combining nano + openai
   lineChart('chart-overview', d.combined_daily, ranges['chart-overview'], (series) => [
     { label:'NanoBanana', data: series.map(s=>s.nano), borderColor: NANO, backgroundColor: NANO_FILL,
       borderWidth:2, pointRadius: series.length<=30?2:0, pointHoverRadius:4, fill:'origin', tension:.25, stack:'a' },
@@ -566,53 +662,48 @@ function renderOverview(d) {
       borderWidth:2, pointRadius: series.length<=30?2:0, pointHoverRadius:4, fill:'-1', tension:.25, stack:'a' },
   ]);
 
-  // source share donut
   const nMonth = d.sources.nanobanana.totals.month.cost;
   const gMonth = d.sources.openai.totals.month.cost;
-  const totalMonth = nMonth + gMonth;
   const items = [
     { label:'NanoBanana',  value: nMonth, color: NANO },
     { label:'GPT Image 2', value: gMonth, color: GPT  },
   ];
-  donut('chart-source-share', items, Math.max(totalMonth, 0.0001));
+  donut('chart-source-share', items, nMonth + gMonth);
   const list = $('#source-share-list'); list.innerHTML = '';
   for (const it of items) {
-    const pct = totalMonth > 0 ? (it.value/totalMonth)*100 : 0;
+    const pct = (nMonth+gMonth) > 0 ? (it.value/(nMonth+gMonth))*100 : 0;
     const div = document.createElement('div');
     div.className = 'row-i';
-    div.innerHTML = `<span class="dot-c" style="background:${it.color}"></span><span class="name">${it.label}</span><span class="v">${usd(it.value)}</span><span class="pct">${pct.toFixed(0)}%</span>`;
+    div.innerHTML = `<span class="dot-c" style="background:${it.color}"></span><span class="name">${it.label}</span><span class="v">${fmt(it.value, fx)}</span><span class="pct">${pct.toFixed(0)}%</span>`;
     list.appendChild(div);
   }
 
-  // bottom mini cards (nano / openai)
   const set = (p, t) => {
-    $('#'+p+'-today').textContent = usd(t.today.cost);
-    $('#'+p+'-today-krw').textContent = '약 ' + krw(t.today.cost, fx);
-    $('#'+p+'-month').textContent = usd(t.month.cost);
-    $('#'+p+'-month-krw').textContent = '약 ' + krw(t.month.cost, fx);
-    $('#'+p+'-year').textContent = usd(t.year.cost);
-    $('#'+p+'-year-krw').textContent = '약 ' + krw(t.year.cost, fx);
+    setVal(p+'-today', fmt(t.today.cost, fx), p+'-today');
+    $('#'+p+'-today-alt').textContent = fmtAlt(t.today.cost, fx);
+    setVal(p+'-month', fmt(t.month.cost, fx), p+'-month');
+    $('#'+p+'-month-alt').textContent = fmtAlt(t.month.cost, fx);
+    setVal(p+'-year', fmt(t.year.cost, fx), p+'-year');
+    $('#'+p+'-year-alt').textContent = fmtAlt(t.year.cost, fx);
   };
   set('ov-nano', d.sources.nanobanana.totals);
   set('ov-oa',   d.sources.openai.totals);
 }
 
-function renderSourceTab(prefix, src, color, fillColor, segId, chartId, tableId) {
-  const fx = lastData.approx_krw_per_usd || 1450;
-  const t = src.totals;
-  $('#'+prefix+'-today').textContent = usd(t.today.cost);
-  $('#'+prefix+'-today-krw').textContent = '약 ' + krw(t.today.cost, fx);
-  $('#'+prefix+'-month').textContent = usd(t.month.cost);
-  $('#'+prefix+'-month-krw').textContent = '약 ' + krw(t.month.cost, fx);
-  $('#'+prefix+'-year').textContent = usd(t.year.cost);
-  $('#'+prefix+'-year-krw').textContent = '약 ' + krw(t.year.cost, fx);
+function renderSourceTab(prefix, src, color, fillColor, chartId, tableId) {
+  if (!lastData) return;
+  const fx = fxRate(); const t = src.totals;
+  setVal(prefix+'-today', fmt(t.today.cost, fx), prefix+'-today');
+  $('#'+prefix+'-today-alt').textContent = fmtAlt(t.today.cost, fx);
+  setVal(prefix+'-month', fmt(t.month.cost, fx), prefix+'-month');
+  $('#'+prefix+'-month-alt').textContent = fmtAlt(t.month.cost, fx);
+  setVal(prefix+'-year', fmt(t.year.cost, fx), prefix+'-year');
+  $('#'+prefix+'-year-alt').textContent = fmtAlt(t.year.cost, fx);
 
-  setDelta($('#'+prefix+'-today-d'),
-    {text: fmtDelta(t.today.cost, t.last_week_same_day.cost).text + ' vs 지난주',
-     cls: fmtDelta(t.today.cost, t.last_week_same_day.cost).cls});
-  setDelta($('#'+prefix+'-month-d'),
-    {text: fmtDelta(t.month.cost, t.last_month.cost).text + ' vs 지난달',
-     cls: fmtDelta(t.month.cost, t.last_month.cost).cls});
+  const td = fmtDelta(t.today.cost, t.last_week_same_day.cost);
+  setDelta($('#'+prefix+'-today-d'), {text: td.text + ' vs 지난주', cls: td.cls});
+  const md = fmtDelta(t.month.cost, t.last_month.cost);
+  setDelta($('#'+prefix+'-month-d'), {text: md.text + ' vs 지난달', cls: md.cls});
 
   lineChart(chartId, src.daily, ranges[chartId], (series) => [{
     label: src.primary_label, data: series.map(s=>s.cost),
@@ -620,53 +711,263 @@ function renderSourceTab(prefix, src, color, fillColor, segId, chartId, tableId)
     borderWidth:2, pointRadius: series.length<=30?3:0, pointHoverRadius:5,
     pointBackgroundColor:color, fill:'origin', tension:.25,
   }]);
-  renderTable(tableId, src.category_table, color);
-}
 
-function renderHistory(d) {
-  const months = d.combined_monthly;
-  const ctx = document.getElementById('chart-monthly').getContext('2d');
-  if (charts['chart-monthly']) charts['chart-monthly'].destroy();
-  charts['chart-monthly'] = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: months.map(m => m.month),
-      datasets: [
-        { label: 'NanoBanana',  data: months.map(m=>m.nano), backgroundColor: NANO, stack:'a', borderRadius:4 },
-        { label: 'GPT Image 2', data: months.map(m=>m.gpt),  backgroundColor: GPT,  stack:'a', borderRadius:4 },
-      ],
-    },
-    options: { maintainAspectRatio: false,
-      plugins: { legend: { display:false },
-        tooltip: { backgroundColor:'#0f1419', titleColor:'#fff', bodyColor:'#fff', padding:10,
-          callbacks: { label: (c) => c.dataset.label + ': ' + usd(c.parsed.y) } } },
-      scales: {
-        x: { stacked:true, ticks:{color:'#5b6473',font:{size:11}}, grid:{display:false}, border:{display:false} },
-        y: { stacked:true, ticks:{color:'#5b6473',callback:(v)=>usd(v),font:{size:11}}, grid:{color:'#eef0f3'}, border:{display:false} },
-      },
-    },
-  });
-
-  const tbody = $('#tbl-monthly'); tbody.innerHTML = '';
-  for (const m of months.slice().reverse()) {
+  // category table
+  const total = src.category_table.reduce((s,it)=>s+it.total, 0);
+  const tbody = $('#' + tableId); tbody.innerHTML = '';
+  if (!src.category_table.length || total === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="color:var(--dim);text-align:center;padding:18px">데이터 없음</td></tr>`;
+    return;
+  }
+  for (const it of src.category_table) {
+    const pct = total>0 ? (it.total/total)*100 : 0;
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${m.month}</td><td class="num">${usd(m.nano)}</td><td class="num">${usd(m.gpt)}</td><td class="num"><b>${usd(m.total)}</b></td>`;
+    tr.innerHTML = `
+      <td><span class="dot-c" style="background:${color}"></span><span class="name">${it.category}</span><span class="pct">${pct.toFixed(1)}%</span></td>
+      <td class="num">${fmt(it.today, fx)}</td>
+      <td class="num">${fmt(it.month, fx)}</td>
+      <td class="num"><b>${fmt(it.total, fx)}</b></td>
+      <td class="num">${sparkSvg(it.sparkline, color)}</td>`;
     tbody.appendChild(tr);
   }
 }
 
-function renderStatus(d) {
-  const ts = d.last_refresh_ts;
-  const status = d.sync_status === 'ok';
-  $('#statusPill').classList.remove('warn','bad');
-  if (!status) $('#statusPill').classList.add('bad');
-  if (ts) {
-    const last = new Date(ts*1000);
-    $('#statusText').textContent = '정상 · 마지막 수집 ' + last.toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit'});
-  } else {
-    $('#statusText').textContent = status ? '정상' : '오류';
+// === reports ===
+function sortRows(rows, sort) {
+  return rows.slice().sort((a, b) => {
+    const av = a[sort.key], bv = b[sort.key];
+    if (av < bv) return -sort.dir;
+    if (av > bv) return sort.dir;
+    return 0;
+  });
+}
+function setHeaderArrows(tableId, sort) {
+  const ths = $$(`#${tableId} th[data-sort]`);
+  ths.forEach(th => {
+    const ord = th.querySelector('.ord');
+    if (!ord) return;
+    ord.textContent = th.dataset.sort === sort.key ? (sort.dir === 1 ? '▲' : '▼') : '';
+  });
+}
+
+function renderMonthly() {
+  if (!lastData) return;
+  const fx = fxRate();
+  const months = lastData.combined_monthly;
+
+  // chart
+  const ctx = document.getElementById('chart-monthly').getContext('2d');
+  if (charts['chart-monthly']) charts['chart-monthly'].destroy();
+  charts['chart-monthly'] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: months.map(m=>m.month),
+      datasets: [
+        { label:'NanoBanana',  data: months.map(m=>m.nano), backgroundColor: NANO, stack:'a', borderRadius:4 },
+        { label:'GPT Image 2', data: months.map(m=>m.gpt),  backgroundColor: GPT,  stack:'a', borderRadius:4 },
+      ] },
+    options: { maintainAspectRatio:false,
+      plugins: { legend:{display:false},
+        tooltip: { backgroundColor:'#0f1419', titleColor:'#fff', bodyColor:'#fff', padding:10,
+          callbacks: { label: (c) => c.dataset.label + ': ' + fmt(c.parsed.y, fx) } } },
+      scales: {
+        x: { stacked:true, ticks:{color:'#5b6473',font:{size:11}}, grid:{display:false}, border:{display:false} },
+        y: { stacked:true, ticks:{color:'#5b6473',callback:(v)=>fmt(v, fx),font:{size:11}}, grid:{color:'#eef0f3'}, border:{display:false} },
+      },
+    },
+  });
+
+  const sorted = sortRows(months, state.sortMonthly);
+  const tbody = $('#tbl-monthly'); tbody.innerHTML = '';
+  const todayMonth = (new Date()).toISOString().slice(0,7);
+  for (const m of sorted) {
+    const tr = document.createElement('tr');
+    if (m.month === todayMonth) tr.classList.add('now');
+    tr.innerHTML = `<td><b>${m.month}</b></td>
+      <td class="num">${fmt(m.nano, fx)}</td>
+      <td class="num">${fmt(m.gpt, fx)}</td>
+      <td class="num"><b>${fmt(m.total, fx)}</b></td>`;
+    tbody.appendChild(tr);
   }
-  // age in sidebar footer
+  setHeaderArrows('tblMonthly', state.sortMonthly);
+}
+
+function renderDaily() {
+  if (!lastData) return;
+  const fx = fxRate();
+  const days = state.dailyRange;
+  const all = lastData.combined_daily.slice(-days);
+
+  const sorted = sortRows(all, state.sortDaily);
+  const tbody = $('#tbl-daily'); tbody.innerHTML = '';
+  const today = (new Date()).toISOString().slice(0,10);
+  if (!sorted.length) {
+    tbody.innerHTML = `<tr><td colspan="4" style="color:var(--dim);text-align:center;padding:18px">데이터 없음</td></tr>`;
+  } else for (const d of sorted) {
+    const tr = document.createElement('tr');
+    if (d.date === today) tr.classList.add('now');
+    tr.innerHTML = `<td><b>${d.date}</b></td>
+      <td class="num">${fmt(d.nano, fx)}</td>
+      <td class="num">${fmt(d.gpt, fx)}</td>
+      <td class="num"><b>${fmt(d.total, fx)}</b></td>`;
+    tbody.appendChild(tr);
+  }
+  setHeaderArrows('tblDaily', state.sortDaily);
+}
+
+function renderCategories() {
+  if (!lastData) return;
+  const fx = fxRate();
+  const all = [
+    ...lastData.sources.nanobanana.category_table.map(c => ({...c, source:'NanoBanana', _color: NANO})),
+    ...lastData.sources.openai.category_table.map(c => ({...c, source:'GPT Image 2', _color: GPT})),
+  ];
+  const grand = all.reduce((s,it)=>s+it.total, 0);
+  const sorted = sortRows(all, state.sortCat);
+  const tbody = $('#tbl-categories'); tbody.innerHTML = '';
+  if (!sorted.length || grand === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="color:var(--dim);text-align:center;padding:18px">데이터 없음</td></tr>`;
+  } else for (const it of sorted) {
+    const pct = grand > 0 ? (it.total/grand)*100 : 0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><span class="dot-c" style="background:${it._color}"></span><b>${it.source}</b></td>
+      <td>${it.category}</td>
+      <td class="num">${fmt(it.today, fx)}</td>
+      <td class="num">${fmt(it.month, fx)}</td>
+      <td class="num"><b>${fmt(it.total, fx)}</b></td>
+      <td class="num">${pct.toFixed(1)}%</td>`;
+    tbody.appendChild(tr);
+  }
+  setHeaderArrows('tblCat', state.sortCat);
+}
+
+function showReportSubtab(name) {
+  $$('#reports-tabs button').forEach(b => b.classList.toggle('on', b.dataset.r === name));
+  $('#rep-monthly').style.display    = name === 'monthly' ? '' : 'none';
+  $('#rep-daily').style.display      = name === 'daily'   ? '' : 'none';
+  $('#rep-categories').style.display = name === 'categories' ? '' : 'none';
+  state.reportsTab = name;
+  if (name === 'monthly') renderMonthly();
+  if (name === 'daily') renderDaily();
+  if (name === 'categories') renderCategories();
+}
+
+// === CSV ===
+function exportCsv(filename, rows) {
+  const csv = rows.map(r => r.map(v => `"${(v==null?'':String(v)).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// === bindings ===
+function bindAllSegs() {
+  const wire = (segId, key, render) => {
+    const seg = $('#'+segId); if (!seg) return;
+    seg.querySelectorAll('button').forEach(btn => {
+      btn.onclick = () => {
+        seg.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+        btn.classList.add('on');
+        ranges[key] = parseInt(btn.dataset.r, 10);
+        render();
+      };
+    });
+  };
+  wire('seg-overview', 'chart-overview', renderOverview);
+  wire('seg-nano',     'chart-nano',     () => renderSourceTab('n', lastData.sources.nanobanana, NANO, NANO_FILL, 'chart-nano', 'tbl-nano'));
+  wire('seg-openai',   'chart-openai',   () => renderSourceTab('g', lastData.sources.openai, GPT, GPT_FILL, 'chart-openai', 'tbl-openai'));
+
+  $$('#reports-tabs button').forEach(b => b.onclick = () => showReportSubtab(b.dataset.r));
+  $$('#seg-daily-range button').forEach(b => b.onclick = () => {
+    $$('#seg-daily-range button').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    state.dailyRange = parseInt(b.dataset.r, 10);
+    renderDaily();
+  });
+
+  // Sort handlers
+  const setSort = (tableId, sortObj, render) => {
+    $$(`#${tableId} th[data-sort]`).forEach(th => {
+      th.onclick = () => {
+        const key = th.dataset.sort;
+        if (sortObj.key === key) sortObj.dir = -sortObj.dir;
+        else { sortObj.key = key; sortObj.dir = key==='month'||key==='date'||key==='source'||key==='category' ? 1 : -1; }
+        render();
+      };
+    });
+  };
+  setSort('tblMonthly', state.sortMonthly, renderMonthly);
+  setSort('tblDaily',   state.sortDaily,   renderDaily);
+  setSort('tblCat',     state.sortCat,     renderCategories);
+
+  // CSV
+  $('#csv-monthly').onclick = () => {
+    const rows = [['Month','NanoBanana_USD','GPT_Image_2_USD','Total_USD']];
+    for (const m of lastData.combined_monthly) rows.push([m.month, m.nano.toFixed(4), m.gpt.toFixed(4), m.total.toFixed(4)]);
+    exportCsv('monthly.csv', rows);
+  };
+  $('#csv-daily').onclick = () => {
+    const rows = [['Date','NanoBanana_USD','GPT_Image_2_USD','Total_USD']];
+    for (const d of lastData.combined_daily.slice(-state.dailyRange)) rows.push([d.date, d.nano.toFixed(4), d.gpt.toFixed(4), d.total.toFixed(4)]);
+    exportCsv('daily.csv', rows);
+  };
+  $('#csv-categories').onclick = () => {
+    const rows = [['Source','Category','Today_USD','Month_USD','Total_USD']];
+    for (const it of lastData.sources.nanobanana.category_table) rows.push(['NanoBanana', it.category, it.today, it.month, it.total]);
+    for (const it of lastData.sources.openai.category_table) rows.push(['GPT_Image_2', it.category, it.today, it.month, it.total]);
+    exportCsv('categories.csv', rows);
+  };
+  $('#csv-nano-cat').onclick = () => {
+    const rows = [['Service','Today_USD','Month_USD','Total_USD']];
+    for (const it of lastData.sources.nanobanana.category_table) rows.push([it.category, it.today, it.month, it.total]);
+    exportCsv('nanobanana_services.csv', rows);
+  };
+  $('#csv-openai-cat').onclick = () => {
+    const rows = [['Model','Today_USD','Month_USD','Total_USD']];
+    for (const it of lastData.sources.openai.category_table) rows.push([it.category, it.today, it.month, it.total]);
+    exportCsv('gpt_image_2_models.csv', rows);
+  };
+
+  // Currency toggle (mirror across all .ccy instances)
+  $$('.ccy, .ccy-mirror').forEach(box => {
+    box.querySelectorAll('button').forEach(btn => {
+      btn.onclick = () => {
+        state.currency = btn.dataset.c;
+        localStorage.setItem('ccy', state.currency);
+        $$('.ccy, .ccy-mirror').forEach(b2 => b2.querySelectorAll('button').forEach(b3 => {
+          b3.classList.toggle('on', b3.dataset.c === state.currency);
+        }));
+        rerenderActive();
+      };
+    });
+  });
+}
+
+function setStatus(d) {
+  const status = d.sync_status === 'ok';
+  $$('.status, .status-mirror').forEach(el => {
+    el.classList.remove('warn','bad','pulse');
+    if (!status) el.classList.add('bad');
+  });
+  if (lastSeenGen && d.generated_at !== lastSeenGen) {
+    $$('.status, .status-mirror').forEach(el => {
+      el.classList.add('pulse');
+      setTimeout(() => el.classList.remove('pulse'), 1300);
+    });
+  }
+  lastSeenGen = d.generated_at;
+
+  const ts = d.last_refresh_ts;
+  const txt = ts
+    ? 'Live · ' + new Date(ts*1000).toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit'})
+    : (status ? 'Live' : '오류');
+  $('#statusText').textContent = txt;
+  $$('.status-mirror').forEach(el => {
+    const span = el.querySelector(':scope > :nth-child(2)') || el.lastElementChild;
+    if (span && span.tagName !== 'SPAN') return;
+    if (el.children.length >= 2) el.children[1].textContent = txt;
+  });
+
   const tick = () => {
     if (!lastData?.last_refresh_ts) { $('#age').textContent = '—'; return; }
     const sec = Math.max(0, Math.floor((Date.now() - lastData.last_refresh_ts*1000)/1000));
@@ -678,34 +979,21 @@ function renderStatus(d) {
   window.__t = setInterval(tick, 30_000);
 }
 
-function bindSegs() {
-  const wire = (segId, chartId, render) => {
-    const seg = $('#'+segId);
-    seg.querySelectorAll('button').forEach(btn => {
-      btn.onclick = () => {
-        seg.querySelectorAll('button').forEach(b => b.classList.remove('on'));
-        btn.classList.add('on');
-        ranges[chartId] = parseInt(btn.dataset.r, 10);
-        render();
-      };
-    });
-  };
-  wire('seg-overview', 'chart-overview', () => renderOverview(lastData));
-  wire('seg-nano',     'chart-nano',     () => renderSourceTab('n', lastData.sources.nanobanana, NANO, NANO_FILL, 'seg-nano', 'chart-nano', 'tbl-nano'));
-  wire('seg-openai',   'chart-openai',   () => renderSourceTab('g', lastData.sources.openai,    GPT,  GPT_FILL,  'seg-openai','chart-openai','tbl-openai'));
+function rerenderActive() {
+  if (!lastData) return;
+  const active = $$('.nav-item.on')[0]?.dataset.tab || 'overview';
+  if (active === 'overview') renderOverview();
+  else if (active === 'nano') renderSourceTab('n', lastData.sources.nanobanana, NANO, NANO_FILL, 'chart-nano', 'tbl-nano');
+  else if (active === 'openai') renderSourceTab('g', lastData.sources.openai, GPT, GPT_FILL, 'chart-openai', 'tbl-openai');
+  else if (active === 'reports') showReportSubtab(state.reportsTab);
 }
 
 function activateTab(name) {
   $$('.nav-item').forEach(el => el.classList.toggle('on', el.dataset.tab === name));
   $$('.tab').forEach(el => el.classList.toggle('on', el.id === 'tab-' + name));
-  if (!lastData) return;
-  if (name === 'overview') renderOverview(lastData);
-  else if (name === 'nano') renderSourceTab('n', lastData.sources.nanobanana, NANO, NANO_FILL, 'seg-nano', 'chart-nano', 'tbl-nano');
-  else if (name === 'openai') renderSourceTab('g', lastData.sources.openai, GPT, GPT_FILL, 'seg-openai', 'chart-openai', 'tbl-openai');
-  else if (name === 'history') renderHistory(lastData);
   history.replaceState(null, '', '#' + name);
+  rerenderActive();
 }
-
 $$('.nav-item').forEach(el => el.onclick = () => activateTab(el.dataset.tab));
 
 async function refresh() {
@@ -714,21 +1002,24 @@ async function refresh() {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
     lastData = d;
-    $('#fx-rate').textContent = (d.approx_krw_per_usd || 1450).toLocaleString();
-    renderStatus(d);
-    // re-render whichever tab is currently visible
-    const active = $$('.nav-item.on')[0]?.dataset.tab || 'overview';
-    activateTab(active);
-    bindSegs();
+    if ($('#fx-rate')) $('#fx-rate').textContent = (d.approx_krw_per_usd || 1450).toLocaleString();
+
+    setStatus(d);
+    rerenderActive();
+    bindAllSegs();
   } catch (e) {
     $('#statusText').textContent = '갱신 실패: ' + e.message;
-    $('#statusPill').classList.add('bad');
+    $$('.status, .status-mirror').forEach(el => el.classList.add('bad'));
   }
 }
-// initial
+
+// initial setup: read hash, set currency from storage
 const initial = (location.hash || '#overview').slice(1);
 $$('.nav-item').forEach(el => el.classList.toggle('on', el.dataset.tab === initial));
 $$('.tab').forEach(el => el.classList.toggle('on', el.id === 'tab-' + initial));
+$$('.ccy, .ccy-mirror').forEach(box => box.querySelectorAll('button').forEach(b =>
+  b.classList.toggle('on', b.dataset.c === state.currency)));
+
 refresh();
 setInterval(refresh, REFETCH_MS);
 </script>
