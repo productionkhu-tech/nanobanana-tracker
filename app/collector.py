@@ -29,37 +29,25 @@ def collect_gcp(keys: Keys) -> tuple[int, int | None, str | None]:
     )
     client = bigquery.Client(credentials=creds, project=keys.gcp_project)
 
-    # cost values come back in the billing-account currency (e.g. KRW for KR accounts).
-    # Divide by currency_conversion_rate (USD→local) to normalize everything to USD.
+    # Match GCP Billing UI semantics exactly:
+    #   * include ALL cost_types (regular + tax + adjustment) — tax rows arrive
+    #     at month-end; excluding them under-reports the actual invoice amount.
+    #   * use SUM(cost) without subtracting credits — this matches the
+    #     user's reference query and "Total billed amount" on the invoice.
+    #   * convert to USD using each row's currency_conversion_rate (the rate
+    #     GCP itself applied for that day's billing).
+    # Date bucketing uses 'US/Pacific' to align with GCP billing day boundaries
+    # (Korean accounts still bill on Pacific time).
     sql = f"""
-    WITH base AS (
-      SELECT
-        DATE(usage_start_time, 'UTC') AS day,
-        service.description AS service,
-        SAFE_DIVIDE(CAST(cost AS NUMERIC), currency_conversion_rate) AS cost_usd,
-        SAFE_DIVIDE(
-          IFNULL((SELECT SUM(CAST(c.amount AS NUMERIC))
-                  FROM UNNEST(credits) c
-                  WHERE c.type IN (
-                    'COMMITTED_USAGE_DISCOUNT',
-                    'COMMITTED_USAGE_DISCOUNT_DOLLAR_BASE',
-                    'FEE_UTILIZATION_OFFSET',
-                    'CREDIT_TYPE_UNSPECIFIED','PROMOTION','SUSTAINED_USAGE_DISCOUNT',
-                    'DISCOUNT','FREE_TIER','SUBSCRIPTION_BENEFIT','RESELLER_MARGIN'
-                  )), 0),
-          currency_conversion_rate) AS credits_usd
-      FROM `{GCP_BILLING_TABLE}`
-      WHERE cost_type NOT IN ('tax', 'adjustment')
-        AND usage_start_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 400 DAY)
-        AND currency_conversion_rate IS NOT NULL
-        AND currency_conversion_rate > 0
-    )
     SELECT
-      CAST(day AS STRING) AS day,
-      service,
-      SUM(cost_usd) AS gross_cost,
-      SUM(cost_usd) + SUM(credits_usd) AS net_cost
-    FROM base
+      CAST(DATE(usage_start_time, 'America/Los_Angeles') AS STRING) AS day,
+      service.description AS service,
+      SUM(SAFE_DIVIDE(CAST(cost AS NUMERIC), currency_conversion_rate)) AS cost_usd,
+      SUM(SAFE_DIVIDE(CAST(cost AS NUMERIC), currency_conversion_rate)) AS gross_cost
+    FROM `{GCP_BILLING_TABLE}`
+    WHERE usage_start_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 400 DAY)
+      AND currency_conversion_rate IS NOT NULL
+      AND currency_conversion_rate > 0
     GROUP BY day, service
     ORDER BY day DESC, service
     """
@@ -74,7 +62,7 @@ def collect_gcp(keys: Keys) -> tuple[int, int | None, str | None]:
             "date": day,
             "request_count": None,
             "image_count": None,
-            "cost_usd": float(row["net_cost"] or 0),
+            "cost_usd": float(row["cost_usd"] or 0),
             "gross_cost": float(row["gross_cost"] or 0),
         })
         if latest_day is None or day > latest_day:
