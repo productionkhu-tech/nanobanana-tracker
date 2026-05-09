@@ -2,8 +2,14 @@ name: track
 
 on:
   schedule:
-    - cron: '*/5 * * * *'    # every 5 min (GitHub may delay 5-15 min under load)
+    # GitHub Actions schedule is best-effort — public repos often see 30-60 min
+    # delays during high-load windows even with `*/5`. We accept this and let the
+    # dashboard surface staleness honestly. For tighter cadence, set up an
+    # external cron (cron-job.org, EasyCron) to POST repository_dispatch below.
+    - cron: '*/5 * * * *'
   workflow_dispatch:           # manual run from Actions tab
+  repository_dispatch:
+    types: [external-cron]     # external cron services can hit /dispatches
 
 permissions:
   contents: write              # write data.json back to the repo

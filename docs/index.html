@@ -553,9 +553,16 @@
           </ul>
           <b style="display:block;margin-top:12px">자동화 / Live</b>
           <ul>
-            <li>GitHub Actions cron이 5분 주기로 자동 수집 (PC 무관, 24/7). 단, GitHub은 schedule 트리거를 부하 시 5~15분 지연시킬 수 있음 — 대시보드 우측 상단 상태 핀이 8분 이상 지연 시 경고색으로 변합니다.</li>
-            <li>대시보드는 30초마다 자동 갱신 — 새 데이터 도착 시 상태 표시기 펄스.</li>
+            <li>수집은 <b>GitHub Actions schedule cron</b>이 담당 (PC 무관, 24/7).</li>
+            <li><b>현실:</b> workflow는 <code>*/5 * * * *</code>로 명세돼 있지만, GitHub 무료 public repo에서 schedule은 <b>best-effort</b>라 부하 시 30~60분, 가끔 그 이상 지연됩니다 (공식 문서 명시). 데이터 소스 자체도 GCP 1~24h, OpenAI 30~60분 지연이 있어 결과적으로 실용 cadence는 시간 단위입니다.</li>
+            <li>상태 핀이 30분 초과 시 노란색, 90분 초과 시 빨간색으로 자동 경고.</li>
+            <li>대시보드는 30초마다 자동 새로고침 — 새 데이터 도착 시 펄스 애니메이션.</li>
             <li>두 소스의 수집 시각은 한 실행에서 통합되어 동일하게 표시됨.</li>
+          </ul>
+          <b style="display:block;margin-top:12px">진짜 5분 cadence가 필요할 때 (선택)</b>
+          <ul>
+            <li>워크플로는 <code>repository_dispatch</code> (event_type: <code>external-cron</code>) 트리거도 받습니다. <a href="https://cron-job.org" target="_blank">cron-job.org</a> 같은 무료 외부 cron 서비스에서 5분마다 GitHub <code>POST /repos/.../dispatches</code>를 호출하면 schedule 지연을 우회할 수 있음.</li>
+            <li>이 경우 PAT를 외부 서비스에 노출하는 트레이드오프가 발생 — 대부분의 사용자는 GitHub schedule(시간 단위)로 충분합니다.</li>
             <li>소스: <a href="https://github.com/productionkhu-tech/nanobanana-tracker" target="_blank">github.com/productionkhu-tech/nanobanana-tracker</a></li>
           </ul>
         </div>
@@ -1091,18 +1098,20 @@ function setStatus(d) {
     const m = Math.floor(sec/60);
     const ago = sec < 60 ? '방금 갱신' : (m < 60 ? `${m}분 전 갱신` : `${Math.floor(m/60)}시간 ${m%60}분 전 갱신`);
 
-    // Apply staleness color *after* base reset above
-    const fresh = m <= 8;       // 5분 cron + 약간 여유
-    const stale = m > 8 && m <= 20;
-    const broken = m > 20;
+    // GitHub Actions schedule cron on free public repos is best-effort: typically
+    // 30~60 min cadence (sometimes longer during high load). Thresholds reflect
+    // that operational reality, not the optimistic */5 spec.
+    const fresh = m <= 30;
+    const stale = m > 30 && m <= 90;
+    const broken = m > 90;
     $$('.status, .status-mirror').forEach(el => {
       if (broken) el.classList.add('bad');
       else if (stale) el.classList.add('warn');
     });
 
-    const suffix = broken ? ' · 데이터 지연 중' : (stale ? ' · 갱신 늦어짐' : '');
+    const suffix = broken ? ' · GitHub cron 멈춤?' : (stale ? ' · 갱신 늦어짐' : '');
     const text = ago + suffix;
-    const tip = `데이터 수집: ${hhmm} · 현재: ${nowHHMM}\n5분마다 GitHub Actions가 자동 수집, 페이지는 30초마다 새 데이터 확인`;
+    const tip = `데이터 수집: ${hhmm} · 현재: ${nowHHMM}\nGitHub Actions schedule이 자동 수집 (5분 명세지만 무료 plan에서 실제로는 30~60분 cadence)\n페이지는 30초마다 새 데이터 확인`;
     const pill = $('#statusPill');
     if (pill) pill.title = tip;
     $('#statusText').textContent = text;
