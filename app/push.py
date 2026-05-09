@@ -120,7 +120,19 @@ def commit_and_push(token: str, user: str, repo: str) -> str:
     diff = run(["git", "diff", "--cached", "--stat"], cwd=REPO).stdout.strip()
     msg = "update data.json\n\n" + (diff or "(no diff)")
     run(["git", "commit", "-m", msg], cwd=REPO, env=env)
-    run(["git", "push", "-u", "origin", "main"], cwd=REPO, env=env)
+    # Race-resilient push: parallel writers (CI + local) can race, so attempt
+    # push, and if rejected, fetch+rebase preferring our local changes for the
+    # whitelisted output files, then retry. data.json is regenerated each run
+    # so "ours" is always the freshest aggregation.
+    for attempt in range(3):
+        push = run(["git", "push", "-u", "origin", "main"], cwd=REPO, env=env, check=False)
+        if push.returncode == 0:
+            break
+        print(f"[push] attempt {attempt+1} rejected — rebasing on origin/main with -X ours")
+        run(["git", "fetch", "origin", "main"], cwd=REPO, env=env)
+        run(["git", "rebase", "-X", "ours", "origin/main"], cwd=REPO, env=env, check=False)
+    else:
+        raise RuntimeError("push failed after 3 attempts")
     return run(["git", "rev-parse", "HEAD"], cwd=REPO).stdout.strip()
 
 
