@@ -127,8 +127,12 @@ def _openai_paginate(endpoint: str, admin_key: str, start: int, end: int,
 
 
 def collect_openai(keys: Keys) -> tuple[int, int | None, str | None]:
-    end = _now_ts()
-    start = end - 400 * 24 * 3600
+    # IMPORTANT: end_time MUST be in the future, otherwise OpenAI omits the
+    # current (in-progress) day bucket from the response — this is why "today"
+    # showed $0 even though the official OpenAI dashboard had usage. Using
+    # +24h ensures the partial today bucket is included.
+    end = _now_ts() + 24 * 3600
+    start = _now_ts() - 400 * 24 * 3600
 
     # cost_by_line[(date, line_item)] = cost
     cost_by_line: dict[tuple[str, str], float] = {}
