@@ -1099,18 +1099,19 @@ function setStatus(d) {
     const m = Math.floor(sec/60);
     const ago = sec < 60 ? '방금 갱신' : (m < 60 ? `${m}분 전 갱신` : `${Math.floor(m/60)}시간 ${m%60}분 전 갱신`);
 
-    // GitHub Actions schedule cron on free public repos is best-effort: typically
-    // 30~60 min cadence (sometimes longer during high load). Thresholds reflect
-    // that operational reality, not the optimistic */5 spec.
-    const fresh = m <= 30;
-    const stale = m > 30 && m <= 90;
-    const broken = m > 90;
+    // GitHub Actions schedule cron on free public repos is best-effort.
+    // Observed real cadence on this repo: ~45–60 min median, up to ~90 min p95.
+    // Thresholds: fresh ≤90m (within normal cron drift) · stale ≤240m (degraded)
+    // · broken >240m (cron almost certainly stuck — needs intervention).
+    const fresh = m <= 90;
+    const stale = m > 90 && m <= 240;
+    const broken = m > 240;
     $$('.status, .status-mirror').forEach(el => {
       if (broken) el.classList.add('bad');
       else if (stale) el.classList.add('warn');
     });
 
-    const suffix = broken ? ' · GitHub cron 멈춤?' : (stale ? ' · 갱신 늦어짐' : '');
+    const suffix = broken ? ' · cron 멈춤 의심 (4h+)' : (stale ? ' · 갱신 늦어짐 (1.5h+)' : '');
     const text = ago + suffix;
     const tip = `데이터 수집: ${hhmm} · 현재: ${nowHHMM}\nGitHub Actions schedule이 자동 수집 (5분 명세지만 무료 plan에서 실제로는 30~60분 cadence)\n페이지는 30초마다 새 데이터 확인`;
     const pill = $('#statusPill');
