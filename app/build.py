@@ -31,6 +31,27 @@ def utc_today_str() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
+def pacific_today_str() -> str:
+    """US/Pacific date — matches GCP billing day boundary."""
+    # PDT (Mar–Nov) = UTC-7, PST = UTC-8. Conservative approx using -7
+    # is wrong for winter; use zoneinfo for correctness.
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d")
+    except Exception:
+        # Fallback: assume PDT (May-Oct in NA). Sufficient for our use case.
+        return (datetime.now(timezone.utc) - timedelta(hours=7)).strftime("%Y-%m-%d")
+
+
+def today_str_for_source(source: str) -> str:
+    """Return the 'today' date string in the timezone the collector used for that source.
+
+    GCP rows are bucketed in America/Los_Angeles (matches GCP billing UI).
+    OpenAI rows are bucketed in UTC (matches OpenAI Admin API).
+    """
+    return pacific_today_str() if source == "gcp" else utc_today_str()
+
+
 def fetch_rows(c):
     return list(c.execute(
         "SELECT source, category, date, request_count, image_count, cost_usd, gross_cost "
@@ -63,7 +84,8 @@ def iso_week_monday(d_iso: str) -> str:
 
 
 def build_source_view(rows, source, include_pred, normalize_cat, primary_label):
-    today = utc_today_str()
+    # Use the date convention this source's collector wrote (Pacific for GCP, UTC for OpenAI).
+    today = today_str_for_source(source)
     today_dt = datetime.fromisoformat(today)
     yesterday = (today_dt - timedelta(days=1)).strftime("%Y-%m-%d")
     week_start = (today_dt - timedelta(days=6)).strftime("%Y-%m-%d")
