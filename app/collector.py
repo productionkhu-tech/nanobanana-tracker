@@ -167,17 +167,18 @@ def collect_openai(keys: Keys) -> tuple[int, int | None, str | None]:
     end = _now_ts() + 24 * 3600
     start = _now_ts() - 400 * 24 * 3600
 
-    # Resolve & cache the api_key_id matching keys.openai_api so we can filter
-    # costs/usage to JUST that key (org has chat/audio/codex keys too, which
-    # the user does NOT want in this tracker).
+    # Resolve & cache the api_key_id matching keys.openai_api. Cache is keyed
+    # by the secret's last-4-suffix so rotating the OpenAI key auto-invalidates.
+    suffix = keys.openai_api[-4:]
+    cache_key = f"openai_api_key_id__{suffix}"
     with conn() as c:
-        cached_id = get_meta(c, "openai_api_key_id")
+        cached_id = get_meta(c, cache_key)
     api_key_id = cached_id
     if not api_key_id:
         api_key_id = _find_api_key_id(keys.openai_admin, keys.openai_api)
         if api_key_id:
             with conn() as c:
-                set_meta(c, "openai_api_key_id", api_key_id)
+                set_meta(c, cache_key, api_key_id)
     key_filter = [api_key_id] if api_key_id else None
     print(f"[oa] filtering costs by api_key_id={api_key_id or '(none — fallback to org-wide)'}")
 
