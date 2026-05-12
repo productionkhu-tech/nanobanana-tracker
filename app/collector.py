@@ -181,6 +181,15 @@ def collect_openai(keys: Keys) -> tuple[int, int | None, str | None]:
     key_filter = [api_key_id] if api_key_id else None
     print(f"[oa] filtering costs by api_key_id={api_key_id or '(none — fallback to org-wide)'}")
 
+    # OpenAI's api_key_ids filter only works for time ranges starting on or after
+    # ~2025-12-05. Clamp start when we're using the filter. (GPT Image 2 launched
+    # 2026-04-21 so we lose no relevant data.)
+    if key_filter:
+        MIN_START_WITH_FILTER = 1764979200  # 2025-12-05 UTC
+        if start < MIN_START_WITH_FILTER:
+            start = MIN_START_WITH_FILTER
+            print(f"[oa] clamped start to {datetime.fromtimestamp(start, tz=timezone.utc):%Y-%m-%d} (api_key filter limit)")
+
     # cost_by_line[(date, line_item)] = cost
     cost_by_line: dict[tuple[str, str], float] = {}
     # images_by_date[date] = (images, requests)
