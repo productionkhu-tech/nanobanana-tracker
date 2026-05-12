@@ -8,7 +8,7 @@ import requests
 from google.cloud import bigquery
 from google.oauth2 import service_account
 
-from db import conn, set_meta, update_sync, upsert_usage
+from db import conn, get_meta, set_meta, update_sync, upsert_usage
 from keys import Keys, load
 
 GCP_BILLING_TABLE = (
@@ -99,8 +99,39 @@ def collect_gcp(keys: Keys) -> tuple[int, int | None, str | None]:
     return n, last_data_ts, None
 
 
+def _find_api_key_id(admin_key: str, target_secret: str) -> str | None:
+    """Locate the api_key_id whose redacted_value matches the last 4 chars of target_secret.
+
+    Org has many keys (chat / audio / etc.); we want costs filtered to just ours.
+    Result is cached in meta table so we don't re-query every cron run.
+    """
+    suffix = target_secret[-4:]
+    headers = {"Authorization": f"Bearer {admin_key}"}
+    try:
+        projs = requests.get("https://api.openai.com/v1/organization/projects",
+                             headers=headers, timeout=30).json().get("data", [])
+    except Exception as e:
+        print(f"[oa] project list failed: {e}")
+        return None
+    for p in projs:
+        try:
+            keys = requests.get(
+                f"https://api.openai.com/v1/organization/projects/{p['id']}/api_keys",
+                headers=headers, timeout=30).json().get("data", [])
+        except Exception:
+            continue
+        for k in keys:
+            redacted = k.get("redacted_value") or ""
+            if redacted.endswith(suffix):
+                print(f"[oa] resolved api_key_id={k['id']} (name={k.get('name')!r}, project={p['id']})")
+                return k["id"]
+    print(f"[oa] no api_key matched suffix '{suffix}'")
+    return None
+
+
 def _openai_paginate(endpoint: str, admin_key: str, start: int, end: int,
-                     limit: int = 31, group_by: list[str] | None = None):
+                     limit: int = 31, group_by: list[str] | None = None,
+                     api_key_ids: list[str] | None = None):
     url = f"https://api.openai.com/v1/organization/{endpoint}"
     headers = {"Authorization": f"Bearer {admin_key}"}
     params: dict = {
@@ -111,6 +142,8 @@ def _openai_paginate(endpoint: str, admin_key: str, start: int, end: int,
     }
     if group_by:
         params["group_by"] = group_by
+    if api_key_ids:
+        params["api_key_ids"] = api_key_ids
     while True:
         r = requests.get(url, headers=headers, params=params, timeout=60)
         if r.status_code != 200:
@@ -134,6 +167,20 @@ def collect_openai(keys: Keys) -> tuple[int, int | None, str | None]:
     end = _now_ts() + 24 * 3600
     start = _now_ts() - 400 * 24 * 3600
 
+    # Resolve & cache the api_key_id matching keys.openai_api so we can filter
+    # costs/usage to JUST that key (org has chat/audio/codex keys too, which
+    # the user does NOT want in this tracker).
+    with conn() as c:
+        cached_id = get_meta(c, "openai_api_key_id")
+    api_key_id = cached_id
+    if not api_key_id:
+        api_key_id = _find_api_key_id(keys.openai_admin, keys.openai_api)
+        if api_key_id:
+            with conn() as c:
+                set_meta(c, "openai_api_key_id", api_key_id)
+    key_filter = [api_key_id] if api_key_id else None
+    print(f"[oa] filtering costs by api_key_id={api_key_id or '(none — fallback to org-wide)'}")
+
     # cost_by_line[(date, line_item)] = cost
     cost_by_line: dict[tuple[str, str], float] = {}
     # images_by_date[date] = (images, requests)
@@ -141,7 +188,8 @@ def collect_openai(keys: Keys) -> tuple[int, int | None, str | None]:
     last_data_ts = None
 
     for bucket in _openai_paginate("costs", keys.openai_admin, start, end,
-                                   limit=180, group_by=["line_item"]):
+                                   limit=180, group_by=["line_item"],
+                                   api_key_ids=key_filter):
         ts = bucket.get("start_time")
         if ts is None:
             continue
@@ -157,7 +205,8 @@ def collect_openai(keys: Keys) -> tuple[int, int | None, str | None]:
         if last_data_ts is None or ts > last_data_ts:
             last_data_ts = ts
 
-    for bucket in _openai_paginate("usage/images", keys.openai_admin, start, end):
+    for bucket in _openai_paginate("usage/images", keys.openai_admin, start, end,
+                                   api_key_ids=key_filter):
         ts = bucket.get("start_time")
         if ts is None:
             continue
