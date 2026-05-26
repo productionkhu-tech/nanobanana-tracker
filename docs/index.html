@@ -1145,7 +1145,11 @@ $$('.nav-item').forEach(el => el.onclick = () => activateTab(el.dataset.tab));
 
 async function refresh() {
   try {
-    const r = await fetch('data.json?t=' + Date.now(), { cache: 'no-store' });
+    // GitHub Pages CDN 배포 속도가 5분 push cadence를 따라잡지 못해
+    // (배포가 cancel/fail 누적되며 ~10분 stale 발생) — raw 파일로 직접 fetch.
+    // raw.githubusercontent.com은 git push 후 ~10초 내 최신 반영, CORS 허용.
+    const RAW = 'https://raw.githubusercontent.com/productionkhu-tech/nanobanana-tracker/main/docs/data.json';
+    const r = await fetch(RAW + '?t=' + Date.now(), { cache: 'no-store' });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
     lastData = d;
