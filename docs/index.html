@@ -600,7 +600,8 @@ let ranges = { 'chart-overview': 7, 'chart-nano': 7, 'chart-openai': 7 };
 const usd = (n) => '$' + (Math.round((n||0)*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const krw = (n, fx) => '₩' + Math.round((n||0)*fx).toLocaleString('ko-KR');
 const fmt = (n, fx) => state.currency === 'USD' ? usd(n) : krw(n, fx);
-const fmtAlt = (n, fx) => state.currency === 'USD' ? '약 ' + krw(n, fx) : usd(n);
+// 양 방향 모두 정적 환율 환산이므로 일관되게 "약" prefix.
+const fmtAlt = (n, fx) => state.currency === 'USD' ? '약 ' + krw(n, fx) : '약 ' + usd(n);
 
 function fmtDelta(cur, prev) {
   if (prev === 0 && cur === 0) return {text:'변화 없음', cls:''};
@@ -633,18 +634,30 @@ function setVal(elId, value, key) {
 // === Chart helpers ===
 function lineChart(canvasId, daily, days, datasets) {
   const series = daily.slice(-days);
+  // x축 라벨은 짧게 (MM-DD), 단 365일 뷰에서 연 경계 첫 점은 'YY-MM-DD' 풀로 표시 →
+  // 연도 모호함 제거. tooltip은 항상 full YYYY-MM-DD.
+  let prevYear = null;
+  const labels = series.map(s => {
+    const yr = s.date.slice(0, 4);
+    const show = (days >= 180 && yr !== prevYear);
+    prevYear = yr;
+    return show ? s.date : s.date.slice(5);
+  });
   const ctx = document.getElementById(canvasId).getContext('2d');
   if (charts[canvasId]) charts[canvasId].destroy();
   charts[canvasId] = new Chart(ctx, {
     type: 'line',
-    data: { labels: series.map(s => s.date.slice(5)), datasets: datasets(series) },
+    data: { labels, datasets: datasets(series) },
     options: {
       maintainAspectRatio: false, animation: { duration: 250 },
       interaction: { intersect: false, mode: 'index' },
       plugins: {
         legend: { display: false },
         tooltip: {
-          callbacks: { label: (ctx) => ctx.dataset.label + ': ' + fmt(ctx.parsed.y, fxRate()) },
+          callbacks: {
+            title: (items) => series[items[0].dataIndex]?.date || items[0].label,  // 항상 YYYY-MM-DD
+            label: (ctx) => ctx.dataset.label + ': ' + fmt(ctx.parsed.y, fxRate()),
+          },
           backgroundColor: '#0f1419', titleColor: '#fff', bodyColor: '#fff',
           padding: 10, displayColors: true, boxPadding: 4,
         },
@@ -1019,36 +1032,62 @@ function bindAllSegs() {
     renderSourceShare();
   });
 
-  // CSV
+  // CSV — 두 통화(USD 원본 + KRW 환산) 모두 포함, 사용된 환율도 메타로 기록.
+  // 데이터 손실 없게 무엇이 export 되었는지 헤더에 명시.
+  const csvFx = () => fxRate();
+  const exportedAt = () => new Date().toISOString();
+  const toUsd = (n) => (n || 0).toFixed(4);
+  const toKrw = (n) => Math.round((n || 0) * csvFx());
+  const metaLine = () => ['# generated_at=' + exportedAt(), 'fx_rate_KRW_per_USD=' + csvFx(),
+                          'fx_source=' + (lastData.fx_source || 'unknown')];
+
   $('#csv-monthly').onclick = () => {
-    const rows = [['Month','NanoBanana_USD','GPT_Image_2_USD','Total_USD']];
-    for (const m of lastData.combined_monthly) rows.push([m.month, m.nano.toFixed(4), m.gpt.toFixed(4), m.total.toFixed(4)]);
+    const rows = [metaLine(),
+      ['Month','NanoBanana_USD','GPT_Image_2_USD','Total_USD','NanoBanana_KRW','GPT_Image_2_KRW','Total_KRW']];
+    for (const m of lastData.combined_monthly)
+      rows.push([m.month, toUsd(m.nano), toUsd(m.gpt), toUsd(m.total), toKrw(m.nano), toKrw(m.gpt), toKrw(m.total)]);
     exportCsv('monthly.csv', rows);
   };
   $('#csv-weekly').onclick = () => {
-    const rows = [['Week_Start_Mon','Week_End_Sun','Label','NanoBanana_USD','GPT_Image_2_USD','Total_USD']];
-    for (const w of (lastData.combined_weekly||[])) rows.push([w.week_start, w.week_end, w.label, w.nano.toFixed(4), w.gpt.toFixed(4), w.total.toFixed(4)]);
+    const rows = [metaLine(),
+      ['Week_Start_Mon','Week_End_Sun','Label','In_Progress','NanoBanana_USD','GPT_Image_2_USD','Total_USD','NanoBanana_KRW','GPT_Image_2_KRW','Total_KRW']];
+    for (const w of (lastData.combined_weekly||[]))
+      rows.push([w.week_start, w.week_end, w.label, w.in_progress ? 'yes' : 'no',
+                 toUsd(w.nano), toUsd(w.gpt), toUsd(w.total), toKrw(w.nano), toKrw(w.gpt), toKrw(w.total)]);
     exportCsv('weekly.csv', rows);
   };
   $('#csv-daily').onclick = () => {
-    const rows = [['Date','NanoBanana_USD','GPT_Image_2_USD','Total_USD']];
-    for (const d of lastData.combined_daily.slice(-state.dailyRange)) rows.push([d.date, d.nano.toFixed(4), d.gpt.toFixed(4), d.total.toFixed(4)]);
+    const rows = [metaLine(),
+      ['Date','NanoBanana_USD','GPT_Image_2_USD','Total_USD','NanoBanana_KRW','GPT_Image_2_KRW','Total_KRW']];
+    for (const d of lastData.combined_daily.slice(-state.dailyRange))
+      rows.push([d.date, toUsd(d.nano), toUsd(d.gpt), toUsd(d.total), toKrw(d.nano), toKrw(d.gpt), toKrw(d.total)]);
     exportCsv('daily.csv', rows);
   };
   $('#csv-categories').onclick = () => {
-    const rows = [['Source','Category','Today_USD','Month_USD','Total_USD']];
-    for (const it of lastData.sources.nanobanana.category_table) rows.push(['NanoBanana', it.category, it.today, it.month, it.total]);
-    for (const it of lastData.sources.openai.category_table) rows.push(['GPT_Image_2', it.category, it.today, it.month, it.total]);
+    const rows = [metaLine(),
+      ['Source','Category','Today_USD','Month_USD','Total_USD','Today_KRW','Month_KRW','Total_KRW']];
+    for (const it of lastData.sources.nanobanana.category_table)
+      rows.push(['NanoBanana', it.category, toUsd(it.today), toUsd(it.month), toUsd(it.total),
+                 toKrw(it.today), toKrw(it.month), toKrw(it.total)]);
+    for (const it of lastData.sources.openai.category_table)
+      rows.push(['GPT_Image_2', it.category, toUsd(it.today), toUsd(it.month), toUsd(it.total),
+                 toKrw(it.today), toKrw(it.month), toKrw(it.total)]);
     exportCsv('categories.csv', rows);
   };
   $('#csv-nano-cat').onclick = () => {
-    const rows = [['Service','Today_USD','Month_USD','Total_USD']];
-    for (const it of lastData.sources.nanobanana.category_table) rows.push([it.category, it.today, it.month, it.total]);
+    const rows = [metaLine(),
+      ['Service','Today_USD','Month_USD','Total_USD','Today_KRW','Month_KRW','Total_KRW']];
+    for (const it of lastData.sources.nanobanana.category_table)
+      rows.push([it.category, toUsd(it.today), toUsd(it.month), toUsd(it.total),
+                 toKrw(it.today), toKrw(it.month), toKrw(it.total)]);
     exportCsv('nanobanana_services.csv', rows);
   };
   $('#csv-openai-cat').onclick = () => {
-    const rows = [['Model','Today_USD','Month_USD','Total_USD']];
-    for (const it of lastData.sources.openai.category_table) rows.push([it.category, it.today, it.month, it.total]);
+    const rows = [metaLine(),
+      ['Model','Today_USD','Month_USD','Total_USD','Today_KRW','Month_KRW','Total_KRW']];
+    for (const it of lastData.sources.openai.category_table)
+      rows.push([it.category, toUsd(it.today), toUsd(it.month), toUsd(it.total),
+                 toKrw(it.today), toKrw(it.month), toKrw(it.total)]);
     exportCsv('gpt_image_2_models.csv', rows);
   };
 
