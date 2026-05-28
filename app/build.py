@@ -231,15 +231,19 @@ def main() -> None:
         weeks_acc[wkmon]["nano"] += d["nano"]
         weeks_acc[wkmon]["gpt"]  += d["gpt"]
     combined_weekly = []
+    today_str = today_dt.strftime("%Y-%m-%d")
     for i in range(11, -1, -1):
         wmon = (this_monday - timedelta(weeks=i))
         wkey = wmon.strftime("%Y-%m-%d")
         wsun = wmon + timedelta(days=6)
+        wsun_str = wsun.strftime("%Y-%m-%d")
+        in_progress = (wkey <= today_str <= wsun_str)
         b = weeks_acc.get(wkey, {"nano": 0.0, "gpt": 0.0})
         combined_weekly.append({
             "week_start": wkey,
-            "week_end": wsun.strftime("%Y-%m-%d"),
-            "label": f"{wmon.month}/{wmon.day} – {wsun.month}/{wsun.day}",
+            "week_end": wsun_str,
+            "label": f"{wmon.month}/{wmon.day} – {wsun.month}/{wsun.day}" + (" (진행 중)" if in_progress else ""),
+            "in_progress": in_progress,
             "nano": round(b["nano"], 4),
             "gpt":  round(b["gpt"],  4),
             "total": round(b["nano"] + b["gpt"], 4),
