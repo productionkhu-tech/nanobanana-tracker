@@ -704,11 +704,13 @@ function renderOverview() {
   const td = fmtDelta(c.today.cost, c.last_week_same_day.cost);
   setDelta($('#hl-today-d'), {text: td.text + ' vs 지난주', cls: td.cls});
 
+  // 각 선은 자기 절대값 높이로 그려짐 (stacking 없음). 두 소스 스케일이
+  // 다를 때 ($429 vs $7) 모양이 비슷해 보이지 않도록 함.
   lineChart('chart-overview', d.combined_daily, ranges['chart-overview'], (series) => [
     { label:'NanoBanana', data: series.map(s=>s.nano), borderColor: NANO, backgroundColor: NANO_FILL,
-      borderWidth:2, pointRadius: series.length<=30?2:0, pointHoverRadius:4, fill:'origin', tension:.25, stack:'a' },
+      borderWidth:2, pointRadius: series.length<=30?2:0, pointHoverRadius:4, fill:'origin', tension:.25 },
     { label:'GPT Image 2', data: series.map(s=>s.gpt), borderColor: GPT, backgroundColor: GPT_FILL,
-      borderWidth:2, pointRadius: series.length<=30?2:0, pointHoverRadius:4, fill:'-1', tension:.25, stack:'a' },
+      borderWidth:2, pointRadius: series.length<=30?2:0, pointHoverRadius:4, fill:'origin', tension:.25 },
   ]);
 
   renderSourceShare();
