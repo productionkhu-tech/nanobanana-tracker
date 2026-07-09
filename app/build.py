@@ -217,13 +217,17 @@ def main() -> None:
         combined[k] = {"cost": round(
             nano["totals"][k]["cost"] + openai["totals"][k]["cost"] + seed["totals"][k]["cost"], 4)}
 
-    # Combined daily and monthly series for Overview / History tabs
+    # Combined daily series — 날짜 키로 정렬해 합침.
+    # (소스마다 '오늘'의 시간대가 달라서(Pacific/UTC/UTC+8) 배열 인덱스로 짝지으면
+    #  마지막 날짜가 다를 때 하루씩 밀림 — 날짜 합집합 기준으로 만들어 어긋남 방지)
+    nano_by_date = {d["date"]: d["cost"] for d in nano["daily"]}
+    gpt_by_date  = {d["date"]: d["cost"] for d in openai["daily"]}
     seed_by_date = {d["date"]: d["cost"] for d in seed["daily"]}
+    all_dates = sorted(set(nano_by_date) | set(gpt_by_date) | set(seed_by_date))[-366:]
     combined_daily = []
-    for i, dnano in enumerate(nano["daily"]):
-        date = dnano["date"]
-        cn = dnano["cost"]
-        cg = openai["daily"][i]["cost"] if i < len(openai["daily"]) else 0
+    for date in all_dates:
+        cn = nano_by_date.get(date, 0.0)
+        cg = gpt_by_date.get(date, 0.0)
         cs = seed_by_date.get(date, 0.0)
         combined_daily.append({"date": date, "nano": cn, "gpt": cg, "seed": cs,
                                "total": round(cn + cg + cs, 4)})
