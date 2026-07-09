@@ -1,8 +1,12 @@
-"""Pull usage from GCP Billing Export (BigQuery) and OpenAI Admin API into SQLite."""
+"""Pull usage from GCP Billing Export (BigQuery), OpenAI Admin API, and
+BytePlus Billing API (Seedream) into SQLite."""
 from __future__ import annotations
+import hashlib
+import hmac
 import time
 import traceback
-from datetime import datetime, timezone
+import urllib.parse
+from datetime import datetime, timedelta, timezone
 
 import requests
 from google.cloud import bigquery
@@ -15,6 +19,14 @@ GCP_BILLING_TABLE = (
     "studiofreewillusion-ta.nanobananaTA."
     "gcp_billing_export_resource_v1_01432A_47DF68_7BCECB"
 )
+
+# ── BytePlus (Seedream) ──
+BP_HOST = "open.byteplusapi.com"
+BP_REGION = "ap-southeast-1"
+BP_SERVICE = "billing"
+BP_VERSION = "2022-01-01"
+BP_IMAGE_PRODUCT = "Smart_Drawing_T2I"   # ModelArk 이미지 생성(Seedream) 청구 제품명
+BP_BACKFILL_START = "2026-04"            # 최초 1회 백필 시작 월
 
 
 def _now_ts() -> int:
@@ -261,10 +273,152 @@ def collect_openai(keys: Keys) -> tuple[int, int | None, str | None]:
     return n, last_data_ts, None
 
 
+def _bp_sign_and_get(ak: str, sk: str, action: str, query: dict) -> dict:
+    """BytePlus OpenAPI V4 서명(HMAC-SHA256) GET 호출."""
+    now = datetime.now(timezone.utc)
+    x_date = now.strftime("%Y%m%dT%H%M%SZ")
+    short_date = x_date[:8]
+
+    params = {"Action": action, "Version": BP_VERSION}
+    params.update(query)
+    cq = "&".join(
+        f"{urllib.parse.quote(k, safe='-_.~')}={urllib.parse.quote(str(v), safe='-_.~')}"
+        for k, v in sorted(params.items())
+    )
+    payload_hash = hashlib.sha256(b"").hexdigest()
+    content_type = "application/x-www-form-urlencoded"
+    canonical_headers = (
+        f"content-type:{content_type}\nhost:{BP_HOST}\n"
+        f"x-content-sha256:{payload_hash}\nx-date:{x_date}\n"
+    )
+    signed_headers = "content-type;host;x-content-sha256;x-date"
+    canonical_request = "\n".join(["GET", "/", cq, canonical_headers, signed_headers, payload_hash])
+    scope = f"{short_date}/{BP_REGION}/{BP_SERVICE}/request"
+    string_to_sign = "\n".join(
+        ["HMAC-SHA256", x_date, scope, hashlib.sha256(canonical_request.encode()).hexdigest()]
+    )
+    key = sk.encode()
+    for part in (short_date, BP_REGION, BP_SERVICE, "request"):
+        key = hmac.new(key, part.encode(), hashlib.sha256).digest()
+    signature = hmac.new(key, string_to_sign.encode(), hashlib.sha256).hexdigest()
+
+    r = requests.get(
+        f"https://{BP_HOST}/?{cq}",
+        headers={
+            "Content-Type": content_type,
+            "X-Date": x_date,
+            "X-Content-Sha256": payload_hash,
+            "Authorization": (
+                f"HMAC-SHA256 Credential={ak}/{scope}, "
+                f"SignedHeaders={signed_headers}, Signature={signature}"
+            ),
+        },
+        timeout=60,
+    )
+    if r.status_code != 200:
+        raise RuntimeError(f"byteplus {action} {r.status_code}: {r.text[:300]}")
+    return r.json()
+
+
+def _bp_month_rows(ak: str, sk: str, month: str) -> tuple[list[dict], int | None]:
+    """한 달치 Seedream(이미지 생성) 청구 라인 → (date, model)별 usage_daily 행."""
+    agg: dict[tuple[str, str], dict] = {}
+    latest_date = None
+    offset, limit, total = 0, 300, 0
+    while True:
+        body = _bp_sign_and_get(ak, sk, "ListSplitBillDetail", {
+            "BillPeriod": month, "Limit": str(limit), "Offset": str(offset),
+            "GroupTerm": "0", "GroupPeriod": "2", "NeedRecordNum": "1",
+        })
+        result = body.get("Result") or {}
+        items = result.get("List") or []
+        total = result.get("Total") or 0
+        for it in items:
+            if (it.get("Product") or "") != BP_IMAGE_PRODUCT:
+                continue
+            d_raw = str(it.get("ExpenseTime") or "")[:10]
+            date = d_raw if len(d_raw) == 10 and d_raw[:4].isdigit() else f"{month}-01"
+            model = it.get("ConfigName") or "(unknown)"
+            key = (date, model)
+            if key not in agg:
+                agg[key] = {"cost": 0.0, "pretax": 0.0, "count": 0}
+            agg[key]["cost"] += float(it.get("PosttaxAmount") or 0)      # 실청구(세후)
+            agg[key]["pretax"] += float(it.get("PretaxAmount") or 0)
+            agg[key]["count"] += 1
+            if latest_date is None or date > latest_date:
+                latest_date = date
+        offset += limit
+        if offset >= total or not items:
+            break
+
+    rows = [{
+        "source": "byteplus",
+        "category": model,
+        "date": date,
+        "request_count": v["count"],
+        "image_count": None,
+        "cost_usd": round(v["cost"], 6),
+        "gross_cost": round(v["pretax"], 6),
+    } for (date, model), v in agg.items()]
+
+    last_ts = None
+    if latest_date:
+        last_ts = int(datetime.fromisoformat(latest_date).replace(tzinfo=timezone.utc).timestamp())
+    return rows, last_ts
+
+
+def collect_byteplus(keys: Keys) -> tuple[int, int | None, str | None]:
+    """Seedream (BytePlus ModelArk 이미지 생성) 비용 수집.
+
+    매 실행: 당월(+월초 3일까지는 전월) 재조회 — BytePlus 분할청구 귀속이
+    ~1일 지연되므로 재조회로 과거 값이 자동 교정됨. 이전 달들은 DB에 남은
+    값 유지(청구 확정 후 불변). 최초 1회는 BP_BACKFILL_START부터 백필.
+    """
+    if not (keys.byteplus_ak and keys.byteplus_sk):
+        print("[bp] no BytePlus keys — skipped")
+        with conn() as c:
+            update_sync(c, "byteplus", _now_ts(), None, "ok", "skipped: no keys")
+        return 0, None, None
+
+    now = datetime.now(timezone.utc) + timedelta(hours=8)  # BytePlus 청구일 경계(UTC+8) 근사
+    cur_month = now.strftime("%Y-%m")
+    months = [cur_month]
+    if now.day <= 3:
+        prev = (now.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+        months.insert(0, prev)
+
+    with conn() as c:
+        backfilled = get_meta(c, "bp_backfilled")
+    if not backfilled:
+        y, m = int(BP_BACKFILL_START[:4]), int(BP_BACKFILL_START[5:7])
+        months = []
+        while (y, m) <= (now.year, now.month):
+            months.append(f"{y}-{m:02d}")
+            m += 1
+            if m > 12:
+                m, y = 1, y + 1
+        print(f"[bp] first run — backfilling {months[0]}..{months[-1]}")
+
+    rows_all: list[dict] = []
+    last_ts = None
+    for month in months:
+        rows, ts = _bp_month_rows(keys.byteplus_ak, keys.byteplus_sk, month)
+        rows_all.extend(rows)
+        if ts and (last_ts is None or ts > last_ts):
+            last_ts = ts
+
+    with conn() as c:
+        n = upsert_usage(c, rows_all)
+        update_sync(c, "byteplus", _now_ts(), last_ts, "ok")
+        if not backfilled:
+            set_meta(c, "bp_backfilled", "1")
+    return n, last_ts, None
+
+
 def run() -> dict:
     keys = load()
     out = {}
-    for name, fn in (("gcp", collect_gcp), ("openai", collect_openai)):
+    for name, fn in (("gcp", collect_gcp), ("openai", collect_openai), ("byteplus", collect_byteplus)):
         try:
             n, dts, _ = fn(keys)
             out[name] = {"rows": n, "last_data_ts": dts, "status": "ok"}

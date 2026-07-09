@@ -27,6 +27,12 @@ def consolidate_openai_model(line_item: str) -> str:
     return line_item
 
 
+def consolidate_seedream_model(config_name: str) -> str:
+    """BytePlus ConfigName 정리: 리소스팩 접미사 제거해 모델 단위로 묶음."""
+    s = config_name or "(unknown)"
+    return re.sub(r"-Pack-.*$", "", s, flags=re.IGNORECASE)
+
+
 def utc_today_str() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -48,8 +54,13 @@ def today_str_for_source(source: str) -> str:
 
     GCP rows are bucketed in America/Los_Angeles (matches GCP billing UI).
     OpenAI rows are bucketed in UTC (matches OpenAI Admin API).
+    BytePlus rows are bucketed in the provider's billing day (~UTC+8).
     """
-    return pacific_today_str() if source == "gcp" else utc_today_str()
+    if source == "gcp":
+        return pacific_today_str()
+    if source == "byteplus":
+        return (datetime.now(timezone.utc) + timedelta(hours=8)).strftime("%Y-%m-%d")
+    return utc_today_str()
 
 
 def fetch_rows(c):
@@ -195,30 +206,40 @@ def main() -> None:
                                include_pred=is_image_line,
                                normalize_cat=consolidate_openai_model,
                                primary_label="GPT Image 2")
+    seed = build_source_view(rows, source="byteplus",
+                             include_pred=lambda cat: True,
+                             normalize_cat=consolidate_seedream_model,
+                             primary_label="Seedream")
 
     combined = {}
     for k in ("today", "yesterday", "week", "last_week_same_day",
               "month", "last_month", "month_projection", "year"):
         combined[k] = {"cost": round(
-            nano["totals"][k]["cost"] + openai["totals"][k]["cost"], 4)}
+            nano["totals"][k]["cost"] + openai["totals"][k]["cost"] + seed["totals"][k]["cost"], 4)}
 
     # Combined daily and monthly series for Overview / History tabs
+    seed_by_date = {d["date"]: d["cost"] for d in seed["daily"]}
     combined_daily = []
     for i, dnano in enumerate(nano["daily"]):
         date = dnano["date"]
         cn = dnano["cost"]
         cg = openai["daily"][i]["cost"] if i < len(openai["daily"]) else 0
-        combined_daily.append({"date": date, "nano": cn, "gpt": cg, "total": round(cn + cg, 4)})
+        cs = seed_by_date.get(date, 0.0)
+        combined_daily.append({"date": date, "nano": cn, "gpt": cg, "seed": cs,
+                               "total": round(cn + cg + cs, 4)})
 
     # Build combined_monthly by zipping on month key (length may differ between sources)
     nano_by_month = {m["month"]: m["cost"] for m in nano["monthly"]}
     gpt_by_month  = {m["month"]: m["cost"] for m in openai["monthly"]}
-    all_months = sorted(set(nano_by_month) | set(gpt_by_month))[-36:]
+    seed_by_month = {m["month"]: m["cost"] for m in seed["monthly"]}
+    all_months = sorted(set(nano_by_month) | set(gpt_by_month) | set(seed_by_month))[-36:]
     combined_monthly = []
     for m in all_months:
         cn = nano_by_month.get(m, 0.0)
         cg = gpt_by_month.get(m, 0.0)
-        combined_monthly.append({"month": m, "nano": cn, "gpt": cg, "total": round(cn + cg, 4)})
+        cs = seed_by_month.get(m, 0.0)
+        combined_monthly.append({"month": m, "nano": cn, "gpt": cg, "seed": cs,
+                                 "total": round(cn + cg + cs, 4)})
 
     # Weekly buckets (ISO Monday-Sunday) — last 12 weeks
     today_dt = datetime.fromisoformat(utc_today_str())
@@ -227,9 +248,10 @@ def main() -> None:
     for d in combined_daily:
         wkmon = iso_week_monday(d["date"])
         if wkmon not in weeks_acc:
-            weeks_acc[wkmon] = {"week_start": wkmon, "nano": 0.0, "gpt": 0.0}
+            weeks_acc[wkmon] = {"week_start": wkmon, "nano": 0.0, "gpt": 0.0, "seed": 0.0}
         weeks_acc[wkmon]["nano"] += d["nano"]
         weeks_acc[wkmon]["gpt"]  += d["gpt"]
+        weeks_acc[wkmon]["seed"] += d["seed"]
     combined_weekly = []
     today_str = today_dt.strftime("%Y-%m-%d")
     for i in range(11, -1, -1):
@@ -238,7 +260,7 @@ def main() -> None:
         wsun = wmon + timedelta(days=6)
         wsun_str = wsun.strftime("%Y-%m-%d")
         in_progress = (wkey <= today_str <= wsun_str)
-        b = weeks_acc.get(wkey, {"nano": 0.0, "gpt": 0.0})
+        b = weeks_acc.get(wkey, {"nano": 0.0, "gpt": 0.0, "seed": 0.0})
         combined_weekly.append({
             "week_start": wkey,
             "week_end": wsun_str,
@@ -246,7 +268,8 @@ def main() -> None:
             "in_progress": in_progress,
             "nano": round(b["nano"], 4),
             "gpt":  round(b["gpt"],  4),
-            "total": round(b["nano"] + b["gpt"], 4),
+            "seed": round(b["seed"], 4),
+            "total": round(b["nano"] + b["gpt"] + b["seed"], 4),
         })
 
     # Single unified last-refresh timestamp
@@ -265,7 +288,7 @@ def main() -> None:
 
     today_dt = datetime.fromisoformat(utc_today_str())
     payload = {
-        "schema_version": 6,
+        "schema_version": 7,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "approx_krw_per_usd": round(fx_rate, 4),
         "fx_source": fx_source,
@@ -281,11 +304,12 @@ def main() -> None:
         "sources": {
             "nanobanana": {**nano, "tag_color": "#7c3aed"},
             "openai":     {**openai, "tag_color": "#10a37f"},
+            "seedream":   {**seed, "tag_color": "#2563eb"},
         },
         "notes": {
             "currency": "USD 정가(list) 기준 — Free Tier 차감 전 사용량 측정값",
             "fx": "1 USD ≈ 1,450원으로 환산 (실제 GCP 청구 KRW와 환율·세금으로 다를 수 있음)",
-            "delays": "GCP 빌링 export 1~24시간 지연, OpenAI Admin API 30~60분 지연",
+            "delays": "GCP 빌링 export 1~24시간 지연, OpenAI Admin API 30~60분 지연, BytePlus 분할청구 30분~1일 지연",
             "schedule": "GitHub Actions cron 5분 주기 자동 수집 (PC 무관)",
         },
     }

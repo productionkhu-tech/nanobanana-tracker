@@ -15,6 +15,8 @@ class Keys:
     openai_api: str
     openai_admin: str
     github_token: str
+    byteplus_ak: str = ""   # BytePlus IAM Access Key (Seedream) — 없으면 수집 스킵
+    byteplus_sk: str = ""
     github_user: str = "productionkhu-tech"
     github_repo: str = "nanobanana-tracker"
 
@@ -66,6 +68,8 @@ def _load_ci() -> Keys | None:
         openai_api=api,
         openai_admin=admin,
         github_token=token,  # `ghs_...` in CI
+        byteplus_ak=os.environ.get("BYTEPLUS_AK", "").strip(),
+        byteplus_sk=os.environ.get("BYTEPLUS_SK", "").strip(),
     )
 
 
@@ -104,10 +108,24 @@ def _load_local() -> Keys:
     if not (token.startswith("ghp_") or token.startswith("github_pat_") or token.startswith("ghs_")):
         raise RuntimeError("github_token.txt: not a recognized GitHub token prefix")
 
+    # BytePlus AK/SK (선택) — config/byteplus_key.txt: 1행 AK, 2행 SK
+    bp_ak = bp_sk = ""
+    bp_file = config / "byteplus_key.txt"
+    if bp_file.exists():
+        lines = [l.strip() for l in bp_file.read_text(encoding="utf-8").splitlines() if l.strip()]
+        for line in lines:
+            if line.startswith("AK"):
+                bp_ak = line
+            elif bp_ak and not bp_sk:
+                bp_sk = line
+        if not (bp_ak and bp_sk):
+            raise RuntimeError("byteplus_key.txt: expected AK line then SK line")
+
     return Keys(
         gcp_sa_path=sa_path, gcp_project=project,
         openai_api=api, openai_admin=admin,
         github_token=token,
+        byteplus_ak=bp_ak, byteplus_sk=bp_sk,
     )
 
 

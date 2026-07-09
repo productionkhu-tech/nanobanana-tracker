@@ -30,6 +30,7 @@ SECRET_PATTERNS = [
     re.compile(r"sk-admin-[A-Za-z0-9_\-]{30,}"),
     re.compile(r"\bghp_[A-Za-z0-9]{30,}"),
     re.compile(r"\bgithub_pat_[A-Za-z0-9_]{30,}"),
+    re.compile(r"\bAKAP[A-Za-z0-9+/=]{30,}"),   # BytePlus Access Key
     re.compile(r"-----BEGIN (RSA |EC )?PRIVATE KEY-----"),
     re.compile(r'"private_key_id"\s*:'),
     re.compile(r'"client_email"\s*:\s*"[^"]+iam\.gserviceaccount\.com"'),
