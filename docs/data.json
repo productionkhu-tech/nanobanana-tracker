@@ -1,10 +1,10 @@
 {
   "schema_version": 7,
-  "generated_at": "2026-07-09T23:46:08+00:00",
+  "generated_at": "2026-07-09T23:50:41+00:00",
   "approx_krw_per_usd": 1534.725,
   "fx_source": "gcp_billing_export",
-  "last_refresh_ts": 1783640768,
-  "sync_status": "ok",
+  "last_refresh_ts": 1783641041,
+  "sync_status": "error",
   "current_year": 2026,
   "year_start_date": "2026-01-01",
   "today_date": "2026-07-09",
@@ -13,25 +13,25 @@
       "cost": 183.5323
     },
     "yesterday": {
-      "cost": 669.4644
+      "cost": 667.1644
     },
     "week": {
-      "cost": 1710.381
+      "cost": 1708.081
     },
     "last_week_same_day": {
       "cost": 419.269
     },
     "month": {
-      "cost": 2402.7269
+      "cost": 2400.4269
     },
     "last_month": {
       "cost": 8020.9549
     },
     "month_projection": {
-      "cost": 8275.2673
+      "cost": 8268.1373
     },
     "year": {
-      "cost": 14451.4426
+      "cost": 14449.1426
     }
   },
   "combined_daily": [
@@ -2587,8 +2587,8 @@
       "date": "2026-07-09",
       "nano": 87.0524,
       "gpt": 96.4799,
-      "seed": 2.3,
-      "total": 185.8323
+      "seed": 0.0,
+      "total": 183.5323
     },
     {
       "date": "2026-07-10",
@@ -2716,8 +2716,8 @@
       "in_progress": true,
       "nano": 1071.3787,
       "gpt": 428.7803,
-      "seed": 2.3,
-      "total": 1502.459
+      "seed": 0.0,
+      "total": 1500.159
     }
   ],
   "combined_monthly": [
@@ -2746,8 +2746,8 @@
       "month": "2026-07",
       "nano": 1592.6155,
       "gpt": 807.8114,
-      "seed": 2.3,
-      "total": 2402.7269
+      "seed": 0.0,
+      "total": 2400.4269
     }
   ],
   "sources": {
@@ -5968,143 +5968,28 @@
           "cost": 0.0
         },
         "yesterday": {
-          "cost": 2.3
+          "cost": 0.0
         },
         "week": {
-          "cost": 2.3
+          "cost": 0
         },
         "last_week_same_day": {
           "cost": 0.0
         },
         "month": {
-          "cost": 2.3
+          "cost": 0
         },
         "last_month": {
           "cost": 0
         },
         "month_projection": {
-          "cost": 7.13
+          "cost": 0.0
         },
         "year": {
-          "cost": 2.3
+          "cost": 0
         }
       },
-      "category_table": [
-        {
-          "category": "Dola-Seedream-5.0-Pro",
-          "today": 0.0,
-          "month": 2.3,
-          "total": 2.3,
-          "sparkline": [
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            2.3,
-            0.0
-          ]
-        },
-        {
-          "category": "Seedream 5.0-Lite",
-          "today": 0.0,
-          "month": 0.0,
-          "total": 0.0,
-          "sparkline": [
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0
-          ]
-        },
-        {
-          "category": "Seedream 4.5",
-          "today": 0.0,
-          "month": 0.0,
-          "total": 0.0,
-          "sparkline": [
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0
-          ]
-        }
-      ],
+      "category_table": [],
       "daily": [
         {
           "date": "2025-07-11",
@@ -7560,7 +7445,7 @@
         },
         {
           "date": "2026-07-09",
-          "cost": 2.3
+          "cost": 0.0
         },
         {
           "date": "2026-07-10",
@@ -7569,16 +7454,8 @@
       ],
       "monthly": [
         {
-          "month": "2026-04",
-          "cost": 0.0
-        },
-        {
-          "month": "2026-05",
-          "cost": 0.0
-        },
-        {
           "month": "2026-07",
-          "cost": 2.3
+          "cost": 0.0
         }
       ],
       "tag_color": "#2563eb"
