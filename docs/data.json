@@ -1,25 +1,25 @@
 {
   "schema_version": 7,
-  "generated_at": "2026-07-17T06:56:09+00:00",
+  "generated_at": "2026-07-17T07:01:29+00:00",
   "approx_krw_per_usd": 1534.725,
   "fx_source": "gcp_billing_export",
-  "last_refresh_ts": 1784271369,
+  "last_refresh_ts": 1784271689,
   "sync_status": "ok",
   "current_year": 2026,
   "year_start_date": "2026-01-01",
   "today_date": "2026-07-17",
   "totals_combined": {
     "today": {
-      "cost": 238.1378
+      "cost": 0.72
     },
     "yesterday": {
-      "cost": 638.5992
+      "cost": 583.4984
     },
     "week": {
-      "cost": 3132.8574
+      "cost": 3012.5025
     },
     "last_week_same_day": {
-      "cost": 212.2248
+      "cost": 171.3945
     },
     "month": {
       "cost": 5660.7567
@@ -28,20 +28,13 @@
       "cost": 8020.9549
     },
     "month_projection": {
-      "cost": 10692.4479
+      "cost": 10322.5564
     },
     "year": {
       "cost": 17709.4724
     }
   },
   "combined_daily": [
-    {
-      "date": "2025-07-17",
-      "nano": 0.0,
-      "gpt": 0.0,
-      "seed": 0.0,
-      "total": 0.0
-    },
     {
       "date": "2025-07-18",
       "nano": 0.0,
@@ -2755,16 +2748,16 @@
       "primary_label": "NanoBanana",
       "totals": {
         "today": {
-          "cost": 237.4178
+          "cost": 0.0
         },
         "yesterday": {
-          "cost": 292.5186
+          "cost": 237.4178
         },
         "week": {
-          "cost": 1578.7512
+          "cost": 1458.3963
         },
         "last_week_same_day": {
-          "cost": 161.1852
+          "cost": 120.3549
         },
         "month": {
           "cost": 3245.4995
@@ -2773,7 +2766,7 @@
           "cost": 6012.8712
         },
         "month_projection": {
-          "cost": 6288.1553
+          "cost": 5918.2638
         },
         "year": {
           "cost": 12268.0553
@@ -2782,11 +2775,10 @@
       "category_table": [
         {
           "category": "Gemini API",
-          "today": 184.5475,
+          "today": 0.0,
           "month": 2572.535,
           "total": 9330.1069,
           "sparkline": [
-            256.5463,
             267.4498,
             78.6475,
             10.9189,
@@ -2815,16 +2807,16 @@
             383.5439,
             242.7043,
             221.1308,
-            184.5475
+            184.5475,
+            0.0
           ]
         },
         {
           "category": "Vertex AI",
-          "today": 52.8703,
+          "today": 0.0,
           "month": 672.9645,
           "total": 2937.9484,
           "sparkline": [
-            53.5417,
             57.8097,
             23.4746,
             1.6911,
@@ -2853,15 +2845,12 @@
             75.754,
             61.9353,
             71.3878,
-            52.8703
+            52.8703,
+            0.0
           ]
         }
       ],
       "daily": [
-        {
-          "date": "2025-07-17",
-          "cost": 0.0
-        },
         {
           "date": "2025-07-18",
           "cost": 0.0
@@ -4317,6 +4306,10 @@
         {
           "date": "2026-07-16",
           "cost": 237.4178
+        },
+        {
+          "date": "2026-07-17",
+          "cost": 0.0
         }
       ],
       "monthly": [
