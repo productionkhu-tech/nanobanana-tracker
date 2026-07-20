@@ -1,25 +1,25 @@
 {
   "schema_version": 7,
-  "generated_at": "2026-07-19T23:55:59+00:00",
+  "generated_at": "2026-07-20T00:01:37+00:00",
   "approx_krw_per_usd": 1534.725,
   "fx_source": "gcp_billing_export",
-  "last_refresh_ts": 1784505359,
+  "last_refresh_ts": 1784505697,
   "sync_status": "ok",
   "current_year": 2026,
   "year_start_date": "2026-01-01",
-  "today_date": "2026-07-19",
+  "today_date": "2026-07-20",
   "totals_combined": {
     "today": {
       "cost": 0.2438
     },
     "yesterday": {
-      "cost": 18.9394
+      "cost": 2.8071
     },
     "week": {
-      "cost": 2934.7708
+      "cost": 2701.521
     },
     "last_week_same_day": {
-      "cost": 169.9166
+      "cost": 402.4121
     },
     "month": {
       "cost": 5752.9418
@@ -28,7 +28,7 @@
       "cost": 8020.9549
     },
     "month_projection": {
-      "cost": 9383.6034
+      "cost": 9188.0285
     },
     "year": {
       "cost": 17801.6574
@@ -2600,16 +2600,6 @@
   ],
   "combined_weekly": [
     {
-      "week_start": "2026-04-27",
-      "week_end": "2026-05-03",
-      "label": "4/27 – 5/3",
-      "in_progress": false,
-      "nano": 0.0,
-      "gpt": 40.6657,
-      "seed": 0.0,
-      "total": 40.6657
-    },
-    {
       "week_start": "2026-05-04",
       "week_end": "2026-05-10",
       "label": "5/4 – 5/10",
@@ -2712,12 +2702,22 @@
     {
       "week_start": "2026-07-13",
       "week_end": "2026-07-19",
-      "label": "7/13 – 7/19 (진행 중)",
-      "in_progress": true,
+      "label": "7/13 – 7/19",
+      "in_progress": false,
       "nano": 1369.9267,
       "gpt": 1541.7542,
       "seed": 27.73,
       "total": 2939.4109
+    },
+    {
+      "week_start": "2026-07-20",
+      "week_end": "2026-07-26",
+      "label": "7/20 – 7/26 (진행 중)",
+      "in_progress": true,
+      "nano": 0.0,
+      "gpt": 0.0,
+      "seed": 0.0,
+      "total": 0.0
     }
   ],
   "combined_monthly": [
@@ -4342,13 +4342,13 @@
           "cost": 0.0
         },
         "yesterday": {
-          "cost": 16.1323
+          "cost": 0.0
         },
         "week": {
-          "cost": 1541.7541
+          "cost": 1308.5043
         },
         "last_week_same_day": {
-          "cost": 0.7543
+          "cost": 233.2498
         },
         "month": {
           "cost": 2397.3695
@@ -4357,7 +4357,7 @@
           "cost": 2008.0837
         },
         "month_projection": {
-          "cost": 3911.4976
+          "cost": 3715.9227
         },
         "year": {
           "cost": 5423.5293
@@ -4370,7 +4370,6 @@
           "month": 2397.3695,
           "total": 5423.363,
           "sparkline": [
-            0.0,
             132.0377,
             151.6761,
             72.8868,
@@ -4399,6 +4398,7 @@
             334.3006,
             0.0,
             16.1323,
+            0.0,
             0.0
           ]
         },
@@ -4480,10 +4480,6 @@
         }
       ],
       "daily": [
-        {
-          "date": "2025-07-20",
-          "cost": 0.0
-        },
         {
           "date": "2025-07-21",
           "cost": 0.0
@@ -5938,6 +5934,10 @@
         },
         {
           "date": "2026-07-19",
+          "cost": 0.0
+        },
+        {
+          "date": "2026-07-20",
           "cost": 0.0
         }
       ],
