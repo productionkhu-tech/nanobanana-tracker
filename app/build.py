@@ -243,6 +243,20 @@ def main() -> None:
         normalize_cat=consolidate_seedream_model,
         primary_label="Seedream"))
 
+    # 소스별 '마지막 성공 수집 시각'. 정상 수집이면 지금, carry-forward면 직전
+    # 발행본의 값을 계승 → "언제부터 갱신 지연 중"인지 대시보드가 표시할 수 있음.
+    now_ts_ = int(datetime.now(timezone.utc).timestamp())
+    def last_ok_ts(prev_key, carried):
+        if not carried:
+            return now_ts_
+        if prev:
+            prev_src = (prev.get("sources") or {}).get(prev_key) or {}
+            return prev_src.get("last_ok_ts") or prev.get("last_refresh_ts")
+        return None
+    nano_ok_ts = last_ok_ts("nanobanana", nano_carried)
+    oa_ok_ts   = last_ok_ts("openai", oa_carried)
+    seed_ok_ts = last_ok_ts("seedream", seed_carried)
+
     combined = {}
     for k in ("today", "yesterday", "week", "last_week_same_day",
               "month", "last_month", "month_projection", "year"):
@@ -338,9 +352,12 @@ def main() -> None:
         "combined_weekly": combined_weekly,
         "combined_monthly": combined_monthly,
         "sources": {
-            "nanobanana": {**nano, "tag_color": "#7c3aed", "carried_forward": nano_carried},
-            "openai":     {**openai, "tag_color": "#10a37f", "carried_forward": oa_carried},
-            "seedream":   {**seed, "tag_color": "#2563eb", "carried_forward": seed_carried},
+            "nanobanana": {**nano, "tag_color": "#7c3aed", "carried_forward": nano_carried,
+                           "last_ok_ts": nano_ok_ts},
+            "openai":     {**openai, "tag_color": "#10a37f", "carried_forward": oa_carried,
+                           "last_ok_ts": oa_ok_ts},
+            "seedream":   {**seed, "tag_color": "#2563eb", "carried_forward": seed_carried,
+                           "last_ok_ts": seed_ok_ts},
         },
         "notes": {
             "currency": "USD 정가(list) 기준 — Free Tier 차감 전 사용량 측정값",
