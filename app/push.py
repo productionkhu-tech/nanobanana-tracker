@@ -122,16 +122,19 @@ def commit_and_push(token: str, user: str, repo: str) -> str:
     msg = "update data.json\n\n" + (diff or "(no diff)")
     run(["git", "commit", "-m", msg], cwd=REPO, env=env)
     # Race-resilient push: parallel writers (CI + local) can race, so attempt
-    # push, and if rejected, fetch+rebase preferring our local changes for the
-    # whitelisted output files, then retry. data.json is regenerated each run
-    # so "ours" is always the freshest aggregation.
+    # push, and if rejected, fetch+rebase keeping OUR freshly-built data.json.
+    # NOTE: in `git rebase`, -X option sides are INVERTED vs merge — "ours" is
+    # the base (origin/main) and "theirs" is the commit being replayed (ours!).
+    # Using -X ours here silently replaced our fresh data with the remote's
+    # (possibly $0 from a failed CI run) — 2026-07-21 incident. -X theirs keeps
+    # the local rebuild, which is always the freshest aggregation.
     for attempt in range(3):
         push = run(["git", "push", "-u", "origin", "main"], cwd=REPO, env=env, check=False)
         if push.returncode == 0:
             break
-        print(f"[push] attempt {attempt+1} rejected — rebasing on origin/main with -X ours")
+        print(f"[push] attempt {attempt+1} rejected — rebasing on origin/main (keep local data)")
         run(["git", "fetch", "origin", "main"], cwd=REPO, env=env)
-        run(["git", "rebase", "-X", "ours", "origin/main"], cwd=REPO, env=env, check=False)
+        run(["git", "rebase", "-X", "theirs", "origin/main"], cwd=REPO, env=env, check=False)
     else:
         raise RuntimeError("push failed after 3 attempts")
     return run(["git", "rev-parse", "HEAD"], cwd=REPO).stdout.strip()
