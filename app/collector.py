@@ -157,7 +157,18 @@ def _openai_paginate(endpoint: str, admin_key: str, start: int, end: int,
     if api_key_ids:
         params["api_key_ids"] = api_key_ids
     while True:
-        r = requests.get(url, headers=headers, params=params, timeout=60)
+        # OpenAI Admin API가 간헐적으로 매우 느려짐(CI에서 60s 초과 관측).
+        # 페이지당 3회 재시도 + 90s 타임아웃으로 일시 지연을 흡수.
+        last_err = None
+        for attempt in range(3):
+            try:
+                r = requests.get(url, headers=headers, params=params, timeout=90)
+                break
+            except requests.exceptions.Timeout as e:
+                last_err = e
+                print(f"[oa] {endpoint} timeout (attempt {attempt+1}/3), retrying...")
+        else:
+            raise RuntimeError(f"openai {endpoint}: timed out after 3 attempts") from last_err
         if r.status_code != 200:
             raise RuntimeError(f"openai {endpoint} {r.status_code}: {r.text[:300]}")
         body = r.json()
@@ -227,19 +238,26 @@ def collect_openai(keys: Keys) -> tuple[int, int | None, str | None]:
         if last_data_ts is None or ts > last_data_ts:
             last_data_ts = ts
 
-    for bucket in _openai_paginate("usage/images", keys.openai_admin, start, end,
-                                   api_key_ids=key_filter):
-        ts = bucket.get("start_time")
-        if ts is None:
-            continue
-        date = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
-        imgs = 0
-        reqs = 0
-        for res in bucket.get("results", []):
-            imgs += int(res.get("images") or 0)
-            reqs += int(res.get("num_model_requests") or 0)
-        prev = images_by_date.get(date, (0, 0))
-        images_by_date[date] = (prev[0] + imgs, prev[1] + reqs)
+    # usage/images는 대시보드에서 안 쓰는 부가 데이터(카운트 부정확)인데,
+    # 이 엔드포인트가 CI에서 60초 타임아웃 나며 collect_openai 전체를 죽여
+    # GPT 비용이 $0으로 발행된 사고가 있었음(2026-07-21). 실패해도 costs
+    # 수집 결과는 살리도록 격리 + 어떤 예외도 무시.
+    try:
+        for bucket in _openai_paginate("usage/images", keys.openai_admin, start, end,
+                                       api_key_ids=key_filter):
+            ts = bucket.get("start_time")
+            if ts is None:
+                continue
+            date = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
+            imgs = 0
+            reqs = 0
+            for res in bucket.get("results", []):
+                imgs += int(res.get("images") or 0)
+                reqs += int(res.get("num_model_requests") or 0)
+            prev = images_by_date.get(date, (0, 0))
+            images_by_date[date] = (prev[0] + imgs, prev[1] + reqs)
+    except Exception as e:
+        print(f"[oa] usage/images skipped (non-critical): {type(e).__name__}: {e}")
 
     rows_out: list[dict] = []
     # one row per (date, line_item) with cost only

@@ -190,6 +190,16 @@ def build_source_view(rows, source, include_pred, normalize_cat, primary_label):
     }
 
 
+def _load_prev_output():
+    """직전 발행된 data.json (CI에선 직전 커밋본). 없거나 깨졌으면 None."""
+    try:
+        if OUT_PATH.exists():
+            return json.loads(OUT_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return None
+
+
 def main() -> None:
     c = sqlite3.connect(str(DB_PATH))
     c.row_factory = sqlite3.Row
@@ -198,18 +208,40 @@ def main() -> None:
     meta = fetch_meta(c)
     c.close()
 
-    nano = build_source_view(rows, source="gcp",
-                             include_pred=lambda cat: cat in NANOBANANA_SERVICES,
-                             normalize_cat=lambda cat: cat,
-                             primary_label="NanoBanana")
-    openai = build_source_view(rows, source="openai",
-                               include_pred=is_image_line,
-                               normalize_cat=consolidate_openai_model,
-                               primary_label="GPT Image 2")
-    seed = build_source_view(rows, source="byteplus",
-                             include_pred=lambda cat: True,
-                             normalize_cat=consolidate_seedream_model,
-                             primary_label="Seedream")
+    prev = _load_prev_output()
+
+    def view_or_carry(source_key, prev_key, build_fn):
+        """수집 실패로 이 소스의 rows가 0인데 직전 data.json에 유효 데이터가 있으면
+        직전 뷰를 그대로 유지(carry-forward). 일시 API 장애 때 $0으로 덮어써
+        사용량이 '사라져 보이는' 사고 방지 (2026-07-21 OpenAI timeout 사고)."""
+        has_rows = any(r["source"] == source_key for r in rows)
+        if not has_rows and prev:
+            prev_src = (prev.get("sources") or {}).get(prev_key) or {}
+            prev_year = ((prev_src.get("totals") or {}).get("year") or {}).get("cost", 0)
+            if prev_year and prev_year > 0:
+                print(f"[build] {prev_key}: no fresh rows — carrying forward previous data "
+                      f"(year=${prev_year})")
+                keep = {k: prev_src[k] for k in
+                        ("primary_label", "totals", "category_table", "daily", "monthly")
+                        if k in prev_src}
+                return keep, True
+        return build_fn(), False
+
+    nano, nano_carried = view_or_carry("gcp", "nanobanana", lambda: build_source_view(
+        rows, source="gcp",
+        include_pred=lambda cat: cat in NANOBANANA_SERVICES,
+        normalize_cat=lambda cat: cat,
+        primary_label="NanoBanana"))
+    openai, oa_carried = view_or_carry("openai", "openai", lambda: build_source_view(
+        rows, source="openai",
+        include_pred=is_image_line,
+        normalize_cat=consolidate_openai_model,
+        primary_label="GPT Image 2"))
+    seed, seed_carried = view_or_carry("byteplus", "seedream", lambda: build_source_view(
+        rows, source="byteplus",
+        include_pred=lambda cat: True,
+        normalize_cat=consolidate_seedream_model,
+        primary_label="Seedream"))
 
     combined = {}
     for k in ("today", "yesterday", "week", "last_week_same_day",
@@ -306,9 +338,9 @@ def main() -> None:
         "combined_weekly": combined_weekly,
         "combined_monthly": combined_monthly,
         "sources": {
-            "nanobanana": {**nano, "tag_color": "#7c3aed"},
-            "openai":     {**openai, "tag_color": "#10a37f"},
-            "seedream":   {**seed, "tag_color": "#2563eb"},
+            "nanobanana": {**nano, "tag_color": "#7c3aed", "carried_forward": nano_carried},
+            "openai":     {**openai, "tag_color": "#10a37f", "carried_forward": oa_carried},
+            "seedream":   {**seed, "tag_color": "#2563eb", "carried_forward": seed_carried},
         },
         "notes": {
             "currency": "USD 정가(list) 기준 — Free Tier 차감 전 사용량 측정값",
