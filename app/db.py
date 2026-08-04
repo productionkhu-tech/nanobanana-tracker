@@ -8,13 +8,18 @@ DB_PATH = Path(__file__).resolve().parent / "db.sqlite"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS usage_daily (
-  source        TEXT NOT NULL,    -- 'gcp' | 'openai'
+  source        TEXT NOT NULL,    -- 'gcp' | 'openai' | 'byteplus'
   category      TEXT NOT NULL,    -- service description (gcp) or line_item (openai)
   date          TEXT NOT NULL,    -- 'YYYY-MM-DD' UTC
   request_count INTEGER,
   image_count   INTEGER,
   cost_usd      REAL NOT NULL DEFAULT 0,
   gross_cost    REAL,
+  -- 청구 통화 원본 금액. GCP는 KRW로 청구되므로 그날 GCP가 적용한 환율이
+  -- 이미 반영된 '실제 청구액'. USD로 바꿨다가 최신 환율로 되돌리면 과거
+  -- 월 원화가 청구서와 어긋나므로 원본을 그대로 보관한다.
+  -- OpenAI/BytePlus는 USD 청구라 NULL (표시할 때 최신 환율로 추정).
+  cost_krw      REAL,
   PRIMARY KEY (source, category, date)
 );
 
@@ -51,12 +56,20 @@ def get_meta(c: sqlite3.Connection, key: str, default=None):
     return row["value"] if row else default
 
 
+def _migrate(c: sqlite3.Connection) -> None:
+    """기존 DB에 새 컬럼 추가 (CREATE TABLE IF NOT EXISTS로는 안 붙음)."""
+    cols = {r[1] for r in c.execute("PRAGMA table_info(usage_daily)")}
+    if "cost_krw" not in cols:
+        c.execute("ALTER TABLE usage_daily ADD COLUMN cost_krw REAL")
+
+
 @contextmanager
 def conn():
     c = sqlite3.connect(str(DB_PATH))
     c.row_factory = sqlite3.Row
     try:
         c.executescript(SCHEMA)
+        _migrate(c)
         yield c
         c.commit()
     finally:
@@ -66,14 +79,19 @@ def conn():
 def upsert_usage(c: sqlite3.Connection, rows: list[dict]) -> int:
     if not rows:
         return 0
+    for r in rows:
+        r.setdefault("cost_krw", None)
     sql = """
-    INSERT INTO usage_daily (source, category, date, request_count, image_count, cost_usd, gross_cost)
-    VALUES (:source, :category, :date, :request_count, :image_count, :cost_usd, :gross_cost)
+    INSERT INTO usage_daily (source, category, date, request_count, image_count,
+                             cost_usd, gross_cost, cost_krw)
+    VALUES (:source, :category, :date, :request_count, :image_count,
+            :cost_usd, :gross_cost, :cost_krw)
     ON CONFLICT(source, category, date) DO UPDATE SET
       request_count = excluded.request_count,
       image_count   = excluded.image_count,
       cost_usd      = excluded.cost_usd,
-      gross_cost    = excluded.gross_cost
+      gross_cost    = excluded.gross_cost,
+      cost_krw      = excluded.cost_krw
     """
     c.executemany(sql, rows)
     return len(rows)

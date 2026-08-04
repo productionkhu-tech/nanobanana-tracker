@@ -50,12 +50,16 @@ def collect_gcp(keys: Keys) -> tuple[int, int | None, str | None]:
     #     GCP itself applied for that day's billing).
     # Date bucketing uses 'US/Pacific' to align with GCP billing day boundaries
     # (Korean accounts still bill on Pacific time).
+    # cost_krw = 청구 통화 원본 합계. 그날 GCP가 적용한 환율이 이미 반영된
+    # 실제 청구액이므로, 대시보드 원화 표시는 이 값을 그대로 써야 청구서와 일치.
+    # (USD로 바꾼 뒤 최신 환율로 되돌리면 과거 월이 최대 5% 이상 어긋남)
     sql = f"""
     SELECT
       CAST(DATE(usage_start_time, 'America/Los_Angeles') AS STRING) AS day,
       service.description AS service,
       SUM(SAFE_DIVIDE(CAST(cost AS NUMERIC), currency_conversion_rate)) AS cost_usd,
-      SUM(SAFE_DIVIDE(CAST(cost AS NUMERIC), currency_conversion_rate)) AS gross_cost
+      SUM(SAFE_DIVIDE(CAST(cost AS NUMERIC), currency_conversion_rate)) AS gross_cost,
+      SUM(CAST(cost AS NUMERIC)) AS cost_krw
     FROM `{GCP_BILLING_TABLE}`
     WHERE usage_start_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 400 DAY)
       AND currency_conversion_rate IS NOT NULL
@@ -76,6 +80,7 @@ def collect_gcp(keys: Keys) -> tuple[int, int | None, str | None]:
             "image_count": None,
             "cost_usd": float(row["cost_usd"] or 0),
             "gross_cost": float(row["gross_cost"] or 0),
+            "cost_krw": float(row["cost_krw"] or 0),
         })
         if latest_day is None or day > latest_day:
             latest_day = day

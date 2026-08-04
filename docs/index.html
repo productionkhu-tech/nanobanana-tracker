@@ -609,7 +609,13 @@
             <li>NanoBanana 비용 = <b>GCP 빌링 export의 invoice 합계</b>와 동일 기준: <b>모든 cost_type 포함</b>(regular + tax + adjustment), 크레딧 차감 안 함. 즉 GCP 빌링 콘솔의 "이번 달 청구액"과 1:1로 매칭됨. 부가세는 GCP가 월말 정산할 때 자동 포함됩니다.</li>
             <li>GPT Image 2 비용 = OpenAI Admin API costs 엔드포인트의 USD 값 (이미 정가, 세전).</li>
             <li>Seedream 비용 = <b>BytePlus 분할청구(ListSplitBillDetail) API의 실청구액</b> (할인·세금 포함, USD). ModelArk 이미지 생성(Smart_Drawing_T2I) 제품만 집계. 프로젝트 귀속은 30분~1일 지연될 수 있으며 매 수집 시 당월 전체를 재조회해 자동 교정됨.</li>
-            <li>원화는 <b>GCP 빌링 export의 일별 환율</b>(<span id="fx-source">gcp_billing_export</span>, 현재 1 USD = <span id="fx-rate">—</span>원)로 환산합니다. 매 cron 실행 시 GCP가 적용한 가장 최근 환율을 다시 가져오므로 자동으로 갱신됩니다.</li>
+            <li><b>원화(KRW) 표시 방식 — 소스마다 다릅니다.</b>
+              <ul style="margin-top:4px">
+                <li><b>NanoBanana</b>: GCP가 원래 KRW로 청구하므로 <b>그 달 GCP가 실제 적용한 환율이 반영된 청구액을 그대로 표시</b>합니다. 즉 과거 달도 GCP 청구서와 1:1로 일치합니다. (USD로 바꿨다가 최신 환율로 되돌리면 최대 5% 이상 어긋나므로 그렇게 하지 않습니다.)</li>
+                <li><b>GPT Image 2 · Seedream</b>: USD로 청구되므로 원화는 <b>추정값</b>입니다. 최신 환율(<span id="fx-source">gcp_billing_export</span> 기준, 현재 1 USD = <span id="fx-rate">—</span>원)을 곱해 표시합니다.</li>
+              </ul>
+            </li>
+            <li>USD 금액은 모든 소스에서 그날그날의 환율로 정확히 환산된 값입니다 (단일 환율 일괄 적용 아님).</li>
           </ul>
           <b style="display:block;margin-top:12px">데이터 지연</b>
           <ul>
@@ -671,9 +677,31 @@ let ranges = { 'chart-overview': 7, 'chart-nano': 7, 'chart-openai': 7, 'chart-s
 
 const usd = (n) => '$' + (Math.round((n||0)*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const krw = (n, fx) => '₩' + Math.round((n||0)*fx).toLocaleString('ko-KR');
-const fmt = (n, fx) => state.currency === 'USD' ? usd(n) : krw(n, fx);
-// 양 방향 모두 정적 환율 환산이므로 일관되게 "약" prefix.
-const fmtAlt = (n, fx) => state.currency === 'USD' ? '약 ' + krw(n, fx) : '약 ' + usd(n);
+// fmt(usd, fx, krwExact)
+//   krwExact가 주어지면 그 값을 그대로 원화로 표시한다.
+//   GCP는 KRW로 청구되므로 그날 GCP가 적용한 환율이 이미 반영된 실제 청구액이고,
+//   USD로 바꿨다가 최신 환율로 되돌리면 과거 월이 어긋난다(최대 5%+).
+//   OpenAI/BytePlus는 USD 청구라 build.py가 최신 환율로 추정한 값이 들어온다.
+const fmt = (n, fx, krwExact) => {
+  if (state.currency === 'USD') return usd(n);
+  return (krwExact === undefined || krwExact === null) ? krw(n, fx) : krwRaw(krwExact);
+};
+const krwRaw = (v) => '₩' + Math.round(v || 0).toLocaleString('ko-KR');
+// 보조 표기(반대 통화). 정확한 원화가 있으면 "약" 없이 표시.
+const fmtAlt = (n, fx, krwExact) => {
+  if (state.currency === 'USD') {
+    return (krwExact === undefined || krwExact === null) ? '약 ' + krw(n, fx) : krwRaw(krwExact);
+  }
+  return '약 ' + usd(n);
+};
+// {cost, krw} 형태의 total 객체용 단축 헬퍼
+const fmtT = (t, fx) => fmt(t.cost, fx, t.krw);
+const fmtAltT = (t, fx) => fmtAlt(t.cost, fx, t.krw);
+// 이미 표시 통화 단위인 숫자를 포맷 (차트 축·툴팁용 — 추가 환산 안 함)
+const fmtNum = (v) => state.currency === 'USD' ? usd(v) : krwRaw(v);
+// 차트 계열용: 현재 통화에 맞는 필드를 고름
+const pickVal = (o, usdKey, krwKey) =>
+  (state.currency === 'USD' ? (o[usdKey] || 0) : (o[krwKey] || 0));
 
 function fmtDelta(cur, prev) {
   if (prev === 0 && cur === 0) return {text:'변화 없음', cls:''};
@@ -728,7 +756,7 @@ function lineChart(canvasId, daily, days, datasets) {
         tooltip: {
           callbacks: {
             title: (items) => series[items[0].dataIndex]?.date || items[0].label,  // 항상 YYYY-MM-DD
-            label: (ctx) => ctx.dataset.label + ': ' + fmt(ctx.parsed.y, fxRate()),
+            label: (ctx) => ctx.dataset.label + ': ' + fmtNum(ctx.parsed.y),
           },
           backgroundColor: '#0f1419', titleColor: '#fff', bodyColor: '#fff',
           padding: 10, displayColors: true, boxPadding: 4,
@@ -737,7 +765,7 @@ function lineChart(canvasId, daily, days, datasets) {
       scales: {
         x: { ticks:{color:'#5b6473',maxRotation:0,autoSkip:true,maxTicksLimit:8,font:{size:11}},
              grid:{display:false}, border:{display:false} },
-        y: { ticks:{color:'#5b6473',callback:(v)=>fmt(v, fxRate()),font:{size:11}},
+        y: { ticks:{color:'#5b6473',callback:(v)=>fmtNum(v),font:{size:11}},
              grid:{color:'#eef0f3'}, border:{display:false}, beginAtZero:true },
       },
     },
@@ -764,7 +792,7 @@ function donut(canvasId, items, total) {
     data: { labels: items.map(i=>i.label), datasets:[{ data: items.map(i=>i.value), backgroundColor: items.map(i=>i.color), borderColor: '#fff', borderWidth: 2 }] },
     options: { maintainAspectRatio:false, cutout:'68%',
       plugins: { legend:{display:false},
-        tooltip:{ callbacks:{ label: (c) => c.label + ': ' + fmt(c.parsed, fxRate()) + ' (' + ((c.parsed/Math.max(total,0.0001))*100).toFixed(1) + '%)' } } } },
+        tooltip:{ callbacks:{ label: (c) => c.label + ': ' + fmtNum(c.parsed) + ' (' + ((c.parsed/Math.max(total,0.0001))*100).toFixed(1) + '%)' } } } },
   });
 }
 
@@ -772,14 +800,14 @@ function donut(canvasId, items, total) {
 function renderOverview() {
   const d = lastData; if (!d) return;
   const fx = fxRate(); const c = d.totals_combined;
-  setVal('hl-month', fmt(c.month.cost, fx), 'hl-month');
-  $('#hl-month-alt').textContent = '· ' + fmtAlt(c.month.cost, fx);
-  setVal('hl-today', fmt(c.today.cost, fx), 'hl-today');
-  $('#hl-today-alt').textContent = fmtAlt(c.today.cost, fx);
-  setVal('hl-week', fmt(c.week.cost, fx), 'hl-week');
-  $('#hl-week-alt').textContent = fmtAlt(c.week.cost, fx);
-  setVal('hl-year', fmt(c.year.cost, fx), 'hl-year');
-  $('#hl-year-alt').textContent = fmtAlt(c.year.cost, fx);
+  setVal('hl-month', fmtT(c.month, fx), 'hl-month');
+  $('#hl-month-alt').textContent = '· ' + fmtAltT(c.month, fx);
+  setVal('hl-today', fmtT(c.today, fx), 'hl-today');
+  $('#hl-today-alt').textContent = fmtAltT(c.today, fx);
+  setVal('hl-week', fmtT(c.week, fx), 'hl-week');
+  $('#hl-week-alt').textContent = fmtAltT(c.week, fx);
+  setVal('hl-year', fmtT(c.year, fx), 'hl-year');
+  $('#hl-year-alt').textContent = fmtAltT(c.year, fx);
   if ($('#hl-year-range') && d.year_start_date && d.today_date) {
     $('#hl-year-range').textContent = `${d.year_start_date} ~ ${d.today_date}`;
   }
@@ -792,23 +820,23 @@ function renderOverview() {
   // 각 선은 자기 절대값 높이로 그려짐 (stacking 없음). 두 소스 스케일이
   // 다를 때 ($429 vs $7) 모양이 비슷해 보이지 않도록 함.
   lineChart('chart-overview', d.combined_daily, ranges['chart-overview'], (series) => [
-    { label:'NanoBanana', data: series.map(s=>s.nano), borderColor: NANO, backgroundColor: NANO_FILL,
+    { label:'NanoBanana', data: series.map(s=>pickVal(s,'nano','nano_krw')), borderColor: NANO, backgroundColor: NANO_FILL,
       borderWidth:2, pointRadius: series.length<=30?2:0, pointHoverRadius:4, fill:'origin', tension:.25 },
-    { label:'GPT Image 2', data: series.map(s=>s.gpt), borderColor: GPT, backgroundColor: GPT_FILL,
+    { label:'GPT Image 2', data: series.map(s=>pickVal(s,'gpt','gpt_krw')), borderColor: GPT, backgroundColor: GPT_FILL,
       borderWidth:2, pointRadius: series.length<=30?2:0, pointHoverRadius:4, fill:'origin', tension:.25 },
-    { label:'Seedream', data: series.map(s=>s.seed||0), borderColor: SEED, backgroundColor: SEED_FILL,
+    { label:'Seedream', data: series.map(s=>pickVal(s,'seed','seed_krw')), borderColor: SEED, backgroundColor: SEED_FILL,
       borderWidth:2, pointRadius: series.length<=30?2:0, pointHoverRadius:4, fill:'origin', tension:.25 },
   ]);
 
   renderSourceShare();
 
   const set = (p, t) => {
-    setVal(p+'-today', fmt(t.today.cost, fx), p+'-today');
-    $('#'+p+'-today-alt').textContent = fmtAlt(t.today.cost, fx);
-    setVal(p+'-month', fmt(t.month.cost, fx), p+'-month');
-    $('#'+p+'-month-alt').textContent = fmtAlt(t.month.cost, fx);
-    setVal(p+'-year', fmt(t.year.cost, fx), p+'-year');
-    $('#'+p+'-year-alt').textContent = fmtAlt(t.year.cost, fx);
+    setVal(p+'-today', fmtT(t.today, fx), p+'-today');
+    $('#'+p+'-today-alt').textContent = fmtAltT(t.today, fx);
+    setVal(p+'-month', fmtT(t.month, fx), p+'-month');
+    $('#'+p+'-month-alt').textContent = fmtAltT(t.month, fx);
+    setVal(p+'-year', fmtT(t.year, fx), p+'-year');
+    $('#'+p+'-year-alt').textContent = fmtAltT(t.year, fx);
   };
   set('ov-nano', d.sources.nanobanana.totals);
   set('ov-oa',   d.sources.openai.totals);
@@ -842,9 +870,11 @@ function renderSourceShare() {
   const fx = fxRate();
   const period = state.sharePeriod;
   const labelMap = {today:'당일', month:'당월', year:'올해 (YTD)'};
-  const n = lastData.sources.nanobanana.totals[period].cost;
-  const g = lastData.sources.openai.totals[period].cost;
-  const s = lastData.sources.seedream.totals[period].cost;
+  // 도넛/목록은 현재 통화 단위 값으로 직접 계산 (환산 재적용 금지)
+  const pv = (srcKey) => pickVal(lastData.sources[srcKey].totals[period], 'cost', 'krw');
+  const n = pv('nanobanana');
+  const g = pv('openai');
+  const s = pv('seedream');
   const total = n + g + s;
   const items = [
     { label:'NanoBanana',  value: n, color: NANO },
@@ -855,13 +885,13 @@ function renderSourceShare() {
   const list = $('#source-share-list'); list.innerHTML = '';
   const head = document.createElement('div');
   head.style.cssText = 'color:var(--muted);font-size:11px;letter-spacing:.04em;font-family:var(--mono);text-transform:uppercase;margin-bottom:2px';
-  head.textContent = labelMap[period] + ' 합계: ' + fmt(total, fx);
+  head.textContent = labelMap[period] + ' 합계: ' + fmtNum(total);
   list.appendChild(head);
   for (const it of items) {
     const pct = total > 0 ? (it.value/total)*100 : 0;
     const div = document.createElement('div');
     div.className = 'row-i';
-    div.innerHTML = `<span class="dot-c" style="background:${it.color}"></span><span class="name">${it.label}</span><span class="v">${fmt(it.value, fx)}</span><span class="pct">${pct.toFixed(0)}%</span>`;
+    div.innerHTML = `<span class="dot-c" style="background:${it.color}"></span><span class="name">${it.label}</span><span class="v">${fmtNum(it.value)}</span><span class="pct">${pct.toFixed(0)}%</span>`;
     list.appendChild(div);
   }
 }
@@ -870,12 +900,12 @@ function renderSourceTab(prefix, src, color, fillColor, chartId, tableId) {
   if (!lastData) return;
   renderStaleNote('stale-' + prefix, src);
   const fx = fxRate(); const t = src.totals;
-  setVal(prefix+'-today', fmt(t.today.cost, fx), prefix+'-today');
-  $('#'+prefix+'-today-alt').textContent = fmtAlt(t.today.cost, fx);
-  setVal(prefix+'-month', fmt(t.month.cost, fx), prefix+'-month');
-  $('#'+prefix+'-month-alt').textContent = fmtAlt(t.month.cost, fx);
-  setVal(prefix+'-year', fmt(t.year.cost, fx), prefix+'-year');
-  $('#'+prefix+'-year-alt').textContent = fmtAlt(t.year.cost, fx);
+  setVal(prefix+'-today', fmtT(t.today, fx), prefix+'-today');
+  $('#'+prefix+'-today-alt').textContent = fmtAltT(t.today, fx);
+  setVal(prefix+'-month', fmtT(t.month, fx), prefix+'-month');
+  $('#'+prefix+'-month-alt').textContent = fmtAltT(t.month, fx);
+  setVal(prefix+'-year', fmtT(t.year, fx), prefix+'-year');
+  $('#'+prefix+'-year-alt').textContent = fmtAltT(t.year, fx);
 
   const td = fmtDelta(t.today.cost, t.last_week_same_day.cost);
   setDelta($('#'+prefix+'-today-d'), {text: td.text + ' vs 지난주', cls: td.cls});
@@ -883,7 +913,7 @@ function renderSourceTab(prefix, src, color, fillColor, chartId, tableId) {
   setDelta($('#'+prefix+'-month-d'), {text: md.text + ' vs 지난달', cls: md.cls});
 
   lineChart(chartId, src.daily, ranges[chartId], (series) => [{
-    label: src.primary_label, data: series.map(s=>s.cost),
+    label: src.primary_label, data: series.map(s=>pickVal(s,'cost','krw')),
     borderColor: color, backgroundColor: fillColor,
     borderWidth:2, pointRadius: series.length<=30?3:0, pointHoverRadius:5,
     pointBackgroundColor:color, fill:'origin', tension:.25,
@@ -901,9 +931,9 @@ function renderSourceTab(prefix, src, color, fillColor, chartId, tableId) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><span class="dot-c" style="background:${color}"></span><span class="name">${it.category}</span><span class="pct">${pct.toFixed(1)}%</span></td>
-      <td class="num">${fmt(it.today, fx)}</td>
-      <td class="num">${fmt(it.month, fx)}</td>
-      <td class="num"><b>${fmt(it.total, fx)}</b></td>
+      <td class="num">${fmt(it.today, fx, it.today_krw)}</td>
+      <td class="num">${fmt(it.month, fx, it.month_krw)}</td>
+      <td class="num"><b>${fmt(it.total, fx, it.total_krw)}</b></td>
       <td class="num">${sparkSvg(it.sparkline, color)}</td>`;
     tbody.appendChild(tr);
   }
@@ -939,17 +969,17 @@ function renderMonthly() {
     type: 'bar',
     data: { labels: months.map(m=>m.month),
       datasets: [
-        { label:'NanoBanana',  data: months.map(m=>m.nano), backgroundColor: NANO, stack:'a', borderRadius:4 },
-        { label:'GPT Image 2', data: months.map(m=>m.gpt),  backgroundColor: GPT,  stack:'a', borderRadius:4 },
-        { label:'Seedream',    data: months.map(m=>m.seed||0), backgroundColor: SEED, stack:'a', borderRadius:4 },
+        { label:'NanoBanana',  data: months.map(m=>pickVal(m,'nano','nano_krw')), backgroundColor: NANO, stack:'a', borderRadius:4 },
+        { label:'GPT Image 2', data: months.map(m=>pickVal(m,'gpt','gpt_krw')),  backgroundColor: GPT,  stack:'a', borderRadius:4 },
+        { label:'Seedream',    data: months.map(m=>pickVal(m,'seed','seed_krw')), backgroundColor: SEED, stack:'a', borderRadius:4 },
       ] },
     options: { maintainAspectRatio:false,
       plugins: { legend:{display:false},
         tooltip: { backgroundColor:'#0f1419', titleColor:'#fff', bodyColor:'#fff', padding:10,
-          callbacks: { label: (c) => c.dataset.label + ': ' + fmt(c.parsed.y, fx) } } },
+          callbacks: { label: (c) => c.dataset.label + ': ' + fmtNum(c.parsed.y) } } },
       scales: {
         x: { stacked:true, ticks:{color:'#5b6473',font:{size:11}}, grid:{display:false}, border:{display:false} },
-        y: { stacked:true, ticks:{color:'#5b6473',callback:(v)=>fmt(v, fx),font:{size:11}}, grid:{color:'#eef0f3'}, border:{display:false} },
+        y: { stacked:true, ticks:{color:'#5b6473',callback:(v)=>fmtNum(v),font:{size:11}}, grid:{color:'#eef0f3'}, border:{display:false} },
       },
     },
   });
@@ -962,10 +992,10 @@ function renderMonthly() {
     const tr = document.createElement('tr');
     if (m.month === todayMonth) tr.classList.add('now');
     tr.innerHTML = `<td><b>${m.month}</b></td>
-      <td class="num">${fmt(m.nano, fx)}</td>
-      <td class="num">${fmt(m.gpt, fx)}</td>
-      <td class="num">${fmt(m.seed||0, fx)}</td>
-      <td class="num"><b>${fmt(m.total, fx)}</b></td>`;
+      <td class="num">${fmt(m.nano, fx, m.nano_krw)}</td>
+      <td class="num">${fmt(m.gpt, fx, m.gpt_krw)}</td>
+      <td class="num">${fmt(m.seed||0, fx, m.seed_krw)}</td>
+      <td class="num"><b>${fmt(m.total, fx, m.total_krw)}</b></td>`;
     tbody.appendChild(tr);
   }
   setHeaderArrows('tblMonthly', state.sortMonthly);
@@ -982,17 +1012,17 @@ function renderWeekly() {
     type: 'bar',
     data: { labels: weeks.map(w => w.label),
       datasets: [
-        { label:'NanoBanana',  data: weeks.map(w=>w.nano), backgroundColor: NANO, stack:'a', borderRadius:4 },
-        { label:'GPT Image 2', data: weeks.map(w=>w.gpt),  backgroundColor: GPT,  stack:'a', borderRadius:4 },
-        { label:'Seedream',    data: weeks.map(w=>w.seed||0), backgroundColor: SEED, stack:'a', borderRadius:4 },
+        { label:'NanoBanana',  data: weeks.map(w=>pickVal(w,'nano','nano_krw')), backgroundColor: NANO, stack:'a', borderRadius:4 },
+        { label:'GPT Image 2', data: weeks.map(w=>pickVal(w,'gpt','gpt_krw')),  backgroundColor: GPT,  stack:'a', borderRadius:4 },
+        { label:'Seedream',    data: weeks.map(w=>pickVal(w,'seed','seed_krw')), backgroundColor: SEED, stack:'a', borderRadius:4 },
       ] },
     options: { maintainAspectRatio:false,
       plugins: { legend:{display:false},
         tooltip: { backgroundColor:'#0f1419', titleColor:'#fff', bodyColor:'#fff', padding:10,
-          callbacks: { label: (c) => c.dataset.label + ': ' + fmt(c.parsed.y, fx) } } },
+          callbacks: { label: (c) => c.dataset.label + ': ' + fmtNum(c.parsed.y) } } },
       scales: {
         x: { stacked:true, ticks:{color:'#5b6473',font:{size:11},maxRotation:0,autoSkip:true}, grid:{display:false}, border:{display:false} },
-        y: { stacked:true, ticks:{color:'#5b6473',callback:(v)=>fmt(v, fx),font:{size:11}}, grid:{color:'#eef0f3'}, border:{display:false} },
+        y: { stacked:true, ticks:{color:'#5b6473',callback:(v)=>fmtNum(v),font:{size:11}}, grid:{color:'#eef0f3'}, border:{display:false} },
       },
     },
   });
@@ -1006,10 +1036,10 @@ function renderWeekly() {
     if (w.in_progress) tr.classList.add('now');
     tr.innerHTML = `<td><b>${w.week_start}</b></td>
       <td>${w.label}</td>
-      <td class="num">${fmt(w.nano, fx)}</td>
-      <td class="num">${fmt(w.gpt, fx)}</td>
-      <td class="num">${fmt(w.seed||0, fx)}</td>
-      <td class="num"><b>${fmt(w.total, fx)}</b></td>`;
+      <td class="num">${fmt(w.nano, fx, w.nano_krw)}</td>
+      <td class="num">${fmt(w.gpt, fx, w.gpt_krw)}</td>
+      <td class="num">${fmt(w.seed||0, fx, w.seed_krw)}</td>
+      <td class="num"><b>${fmt(w.total, fx, w.total_krw)}</b></td>`;
     tbody.appendChild(tr);
   }
   setHeaderArrows('tblWeekly', state.sortWeekly);
@@ -1031,10 +1061,10 @@ function renderDaily() {
     const tr = document.createElement('tr');
     if (d.date === today) tr.classList.add('now');
     tr.innerHTML = `<td><b>${d.date}</b></td>
-      <td class="num">${fmt(d.nano, fx)}</td>
-      <td class="num">${fmt(d.gpt, fx)}</td>
-      <td class="num">${fmt(d.seed||0, fx)}</td>
-      <td class="num"><b>${fmt(d.total, fx)}</b></td>`;
+      <td class="num">${fmt(d.nano, fx, d.nano_krw)}</td>
+      <td class="num">${fmt(d.gpt, fx, d.gpt_krw)}</td>
+      <td class="num">${fmt(d.seed||0, fx, d.seed_krw)}</td>
+      <td class="num"><b>${fmt(d.total, fx, d.total_krw)}</b></td>`;
     tbody.appendChild(tr);
   }
   setHeaderArrows('tblDaily', state.sortDaily);
@@ -1058,9 +1088,9 @@ function renderCategories() {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td><span class="dot-c" style="background:${it._color}"></span><b>${it.source}</b></td>
       <td>${it.category}</td>
-      <td class="num">${fmt(it.today, fx)}</td>
-      <td class="num">${fmt(it.month, fx)}</td>
-      <td class="num"><b>${fmt(it.total, fx)}</b></td>
+      <td class="num">${fmt(it.today, fx, it.today_krw)}</td>
+      <td class="num">${fmt(it.month, fx, it.month_krw)}</td>
+      <td class="num"><b>${fmt(it.total, fx, it.total_krw)}</b></td>
       <td class="num">${pct.toFixed(1)}%</td>`;
     tbody.appendChild(tr);
   }
@@ -1144,16 +1174,19 @@ function bindAllSegs() {
   const csvFx = () => fxRate();
   const exportedAt = () => new Date().toISOString();
   const toUsd = (n) => (n || 0).toFixed(4);
-  const toKrw = (n) => Math.round((n || 0) * csvFx());
+  // 실제 청구 KRW가 있으면 그대로(GCP), 없으면 최신 환율로 추정(OpenAI/BytePlus)
+  const toKrw = (krwVal, usdVal) =>
+    Math.round((krwVal !== undefined && krwVal !== null) ? krwVal : (usdVal || 0) * csvFx());
   const metaLine = () => ['# generated_at=' + exportedAt(), 'fx_rate_KRW_per_USD=' + csvFx(),
-                          'fx_source=' + (lastData.fx_source || 'unknown')];
+                          'fx_source=' + (lastData.fx_source || 'unknown'),
+                          'note=NanoBanana_KRW는 GCP 실제 청구액, 그 외는 최신 환율 추정'];
 
   $('#csv-monthly').onclick = () => {
     const rows = [metaLine(),
       ['Month','NanoBanana_USD','GPT_Image_2_USD','Seedream_USD','Total_USD','NanoBanana_KRW','GPT_Image_2_KRW','Seedream_KRW','Total_KRW']];
     for (const m of lastData.combined_monthly)
       rows.push([m.month, toUsd(m.nano), toUsd(m.gpt), toUsd(m.seed), toUsd(m.total),
-                 toKrw(m.nano), toKrw(m.gpt), toKrw(m.seed), toKrw(m.total)]);
+                 toKrw(m.nano_krw, m.nano), toKrw(m.gpt_krw, m.gpt), toKrw(m.seed_krw, m.seed), toKrw(m.total_krw, m.total)]);
     exportCsv('monthly.csv', rows);
   };
   $('#csv-weekly').onclick = () => {
@@ -1162,7 +1195,7 @@ function bindAllSegs() {
     for (const w of (lastData.combined_weekly||[]))
       rows.push([w.week_start, w.week_end, w.label, w.in_progress ? 'yes' : 'no',
                  toUsd(w.nano), toUsd(w.gpt), toUsd(w.seed), toUsd(w.total),
-                 toKrw(w.nano), toKrw(w.gpt), toKrw(w.seed), toKrw(w.total)]);
+                 toKrw(w.nano_krw, w.nano), toKrw(w.gpt_krw, w.gpt), toKrw(w.seed_krw, w.seed), toKrw(w.total_krw, w.total)]);
     exportCsv('weekly.csv', rows);
   };
   $('#csv-daily').onclick = () => {
@@ -1170,7 +1203,7 @@ function bindAllSegs() {
       ['Date','NanoBanana_USD','GPT_Image_2_USD','Seedream_USD','Total_USD','NanoBanana_KRW','GPT_Image_2_KRW','Seedream_KRW','Total_KRW']];
     for (const d of lastData.combined_daily.slice(-state.dailyRange))
       rows.push([d.date, toUsd(d.nano), toUsd(d.gpt), toUsd(d.seed), toUsd(d.total),
-                 toKrw(d.nano), toKrw(d.gpt), toKrw(d.seed), toKrw(d.total)]);
+                 toKrw(d.nano_krw, d.nano), toKrw(d.gpt_krw, d.gpt), toKrw(d.seed_krw, d.seed), toKrw(d.total_krw, d.total)]);
     exportCsv('daily.csv', rows);
   };
   $('#csv-categories').onclick = () => {
@@ -1178,13 +1211,13 @@ function bindAllSegs() {
       ['Source','Category','Today_USD','Month_USD','Total_USD','Today_KRW','Month_KRW','Total_KRW']];
     for (const it of lastData.sources.nanobanana.category_table)
       rows.push(['NanoBanana', it.category, toUsd(it.today), toUsd(it.month), toUsd(it.total),
-                 toKrw(it.today), toKrw(it.month), toKrw(it.total)]);
+                 toKrw(it.today_krw, it.today), toKrw(it.month_krw, it.month), toKrw(it.total_krw, it.total)]);
     for (const it of lastData.sources.openai.category_table)
       rows.push(['GPT_Image_2', it.category, toUsd(it.today), toUsd(it.month), toUsd(it.total),
-                 toKrw(it.today), toKrw(it.month), toKrw(it.total)]);
+                 toKrw(it.today_krw, it.today), toKrw(it.month_krw, it.month), toKrw(it.total_krw, it.total)]);
     for (const it of lastData.sources.seedream.category_table)
       rows.push(['Seedream', it.category, toUsd(it.today), toUsd(it.month), toUsd(it.total),
-                 toKrw(it.today), toKrw(it.month), toKrw(it.total)]);
+                 toKrw(it.today_krw, it.today), toKrw(it.month_krw, it.month), toKrw(it.total_krw, it.total)]);
     exportCsv('categories.csv', rows);
   };
   $('#csv-seed-cat').onclick = () => {
@@ -1192,7 +1225,7 @@ function bindAllSegs() {
       ['Model','Today_USD','Month_USD','Total_USD','Today_KRW','Month_KRW','Total_KRW']];
     for (const it of lastData.sources.seedream.category_table)
       rows.push([it.category, toUsd(it.today), toUsd(it.month), toUsd(it.total),
-                 toKrw(it.today), toKrw(it.month), toKrw(it.total)]);
+                 toKrw(it.today_krw, it.today), toKrw(it.month_krw, it.month), toKrw(it.total_krw, it.total)]);
     exportCsv('seedream_models.csv', rows);
   };
   $('#csv-nano-cat').onclick = () => {
@@ -1200,7 +1233,7 @@ function bindAllSegs() {
       ['Service','Today_USD','Month_USD','Total_USD','Today_KRW','Month_KRW','Total_KRW']];
     for (const it of lastData.sources.nanobanana.category_table)
       rows.push([it.category, toUsd(it.today), toUsd(it.month), toUsd(it.total),
-                 toKrw(it.today), toKrw(it.month), toKrw(it.total)]);
+                 toKrw(it.today_krw, it.today), toKrw(it.month_krw, it.month), toKrw(it.total_krw, it.total)]);
     exportCsv('nanobanana_services.csv', rows);
   };
   $('#csv-openai-cat').onclick = () => {
@@ -1208,7 +1241,7 @@ function bindAllSegs() {
       ['Model','Today_USD','Month_USD','Total_USD','Today_KRW','Month_KRW','Total_KRW']];
     for (const it of lastData.sources.openai.category_table)
       rows.push([it.category, toUsd(it.today), toUsd(it.month), toUsd(it.total),
-                 toKrw(it.today), toKrw(it.month), toKrw(it.total)]);
+                 toKrw(it.today_krw, it.today), toKrw(it.month_krw, it.month), toKrw(it.total_krw, it.total)]);
     exportCsv('gpt_image_2_models.csv', rows);
   };
 
