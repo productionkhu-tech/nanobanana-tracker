@@ -564,6 +564,7 @@
           </div>
           <button class="btn" style="margin-left:auto" id="csv-daily">CSV 내보내기</button></div>
         <div class="card-body">
+          <div id="daily-tz-note" style="color:var(--muted);font-size:11.5px;line-height:1.6;margin-bottom:10px"></div>
           <div class="tbl-scroll">
             <table class="cat" id="tblDaily">
               <thead><tr>
@@ -622,9 +623,15 @@
             <li><b>GCP 빌링 export</b>: 1~24시간 지연.</li>
             <li><b>OpenAI Admin API</b>: 30~60분 지연.</li>
           </ul>
+          <b style="display:block;margin-top:12px">날짜 기준 (소스마다 다름)</b>
+          <ul>
+            <li>각 청구 시스템의 하루 경계를 그대로 따릅니다 — <b>NanoBanana = US/Pacific</b>, <b>GPT Image 2 = UTC</b>, <b>Seedream = UTC+8</b>.</li>
+            <li>그래서 같은 시각에도 소스별 "오늘"이 서로 다른 날짜일 수 있습니다. 각 카드의 today 라벨에 실제 기준일을 함께 표시합니다.</li>
+            <li>이렇게 해야 <b>월·연 합계가 각 청구서와 정확히 일치</b>합니다. 대신 일 단위 표에서는 소스 간 최대 하루 차이가 날 수 있습니다.</li>
+          </ul>
           <b style="display:block;margin-top:12px">기간 정의</b>
           <ul>
-            <li><b>오늘</b>: 오늘 0시(UTC) 이후 누적</li>
+            <li><b>오늘</b>: 각 소스의 기준 타임존으로 오늘 0시 이후 누적</li>
             <li><b>최근 7일</b>: 오늘 포함 7일</li>
             <li><b>이번 달</b>: 이번 달 1일 ~ 오늘</li>
             <li><b>올해 누적 (YTD)</b>: <b>1월 1일 ~ 오늘</b>. <b>해가 바뀌면 자동으로 0부터 다시 시작</b>합니다 (지난해 데이터는 Reports → 월별/주별/일별 탭에 그대로 남음). 이는 빌링 / 회계의 표준 "Year to Date" 의미와 동일.</li>
@@ -830,21 +837,38 @@ function renderOverview() {
 
   renderSourceShare();
 
-  const set = (p, t) => {
+  const set = (p, src) => {
+    const t = src.totals;
     setVal(p+'-today', fmtT(t.today, fx), p+'-today');
     $('#'+p+'-today-alt').textContent = fmtAltT(t.today, fx);
     setVal(p+'-month', fmtT(t.month, fx), p+'-month');
     $('#'+p+'-month-alt').textContent = fmtAltT(t.month, fx);
     setVal(p+'-year', fmtT(t.year, fx), p+'-year');
     $('#'+p+'-year-alt').textContent = fmtAltT(t.year, fx);
+    labelToday(p, src);
   };
-  set('ov-nano', d.sources.nanobanana.totals);
-  set('ov-oa',   d.sources.openai.totals);
-  set('ov-seed', d.sources.seedream.totals);
+  set('ov-nano', d.sources.nanobanana);
+  set('ov-oa',   d.sources.openai);
+  set('ov-seed', d.sources.seedream);
 
   renderStaleNote('stale-ov-nano', d.sources.nanobanana);
   renderStaleNote('stale-ov-oa',   d.sources.openai);
   renderStaleNote('stale-ov-seed', d.sources.seedream);
+}
+
+// "today" 라벨에 그 소스가 실제로 가리키는 날짜·타임존을 표기.
+// GCP는 US/Pacific, OpenAI는 UTC, BytePlus는 UTC+8 기준으로 하루를 끊기 때문에
+// 같은 시각에도 '오늘'이 서로 다른 날짜일 수 있다.
+function labelToday(prefix, src) {
+  const el = $('#' + prefix + '-today');
+  if (!el) return;
+  const lab = el.previousElementSibling;
+  if (!lab || !lab.classList.contains('l')) return;
+  const dt = src.today_date, basis = src.date_basis;
+  lab.textContent = (dt && basis) ? `today · ${dt.slice(5)} (${basis})` : 'today';
+  lab.title = (dt && basis)
+    ? `이 소스는 ${basis} 기준으로 하루를 끊습니다. 표시된 '오늘'은 ${dt} 하루치입니다.`
+    : '';
 }
 
 // carry-forward 상태 배지: "언제부터" 갱신이 지연 중인지 명시.
@@ -902,6 +926,7 @@ function renderSourceTab(prefix, src, color, fillColor, chartId, tableId) {
   const fx = fxRate(); const t = src.totals;
   setVal(prefix+'-today', fmtT(t.today, fx), prefix+'-today');
   $('#'+prefix+'-today-alt').textContent = fmtAltT(t.today, fx);
+  labelToday(prefix, src);
   setVal(prefix+'-month', fmtT(t.month, fx), prefix+'-month');
   $('#'+prefix+'-month-alt').textContent = fmtAltT(t.month, fx);
   setVal(prefix+'-year', fmtT(t.year, fx), prefix+'-year');
@@ -1068,6 +1093,15 @@ function renderDaily() {
     tbody.appendChild(tr);
   }
   setHeaderArrows('tblDaily', state.sortDaily);
+  // 소스별 하루 경계가 달라 같은 행이라도 기준일이 다를 수 있음을 명시
+  const note = $('#daily-tz-note');
+  if (note) {
+    const b = (k) => lastData.sources[k]?.date_basis || '?';
+    note.textContent = `※ 날짜 기준이 소스마다 다릅니다 — NanoBanana ${b('nanobanana')} · `
+      + `GPT Image 2 ${b('openai')} · Seedream ${b('seedream')}. `
+      + `각 청구 시스템의 하루 경계를 그대로 따르므로 월·연 합계는 청구서와 일치하지만, `
+      + `일 단위로는 소스 간 최대 하루 차이가 날 수 있습니다.`;
+  }
 }
 
 function renderCategories() {

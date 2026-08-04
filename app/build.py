@@ -213,9 +213,16 @@ def build_source_view(rows, source, include_pred, normalize_cat, primary_label, 
     def pair(usd_v, krw_v):
         return {"cost": round(usd_v, 4), "krw": round(krw_v, 2)}
 
+    # 소스마다 청구 하루 경계가 달라(GCP=US/Pacific, OpenAI=UTC, BytePlus=UTC+8)
+    # 같은 시각에도 'today'가 가리키는 날짜가 다르다. 화면에서 오해가 없도록
+    # 각 소스가 기준으로 삼은 날짜와 타임존을 함께 내보낸다.
+    DATE_BASIS = {"gcp": "US/Pacific", "openai": "UTC", "byteplus": "UTC+8"}
+
     return {
         "primary_label": primary_label,
         "krw_exact": krw_exact,   # True = 실제 청구 원화, False = 최신 환율 추정
+        "date_basis": DATE_BASIS.get(source, "UTC"),
+        "today_date": today,      # 이 소스의 'today'가 실제로 가리키는 날짜
         "totals": {
             "today":              pair(today_cost, today_krw),
             "yesterday":          pair(yesterday_cost, yesterday_krw),
@@ -275,7 +282,8 @@ def main() -> None:
                 print(f"[build] {prev_key}: no fresh rows — carrying forward previous data "
                       f"(year=${prev_year})")
                 keep = {k: prev_src[k] for k in
-                        ("primary_label", "totals", "category_table", "daily", "monthly")
+                        ("primary_label", "totals", "category_table", "daily", "monthly",
+                         "krw_exact", "date_basis", "today_date")
                         if k in prev_src}
                 return keep, True
         return build_fn(), False
