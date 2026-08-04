@@ -28,8 +28,10 @@
     -webkit-font-smoothing:antialiased;font-feature-settings:'tnum' 1, 'cv11' 1}
 
   /* ===== LAYOUT ===== */
-  .app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
-  @media (max-width:900px){.app{grid-template-columns:1fr}.sidebar{display:none}}
+  /* minmax(0,1fr) 필수 — 그냥 1fr 이면 트랙이 내용의 min-content 보다 작아지지
+     못해서, 큰 숫자(₩40,066,975 등) 때문에 본문이 화면 밖으로 넘친다. */
+  .app{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100vh}
+  @media (max-width:900px){.app{grid-template-columns:minmax(0,1fr)}.sidebar{display:none}}
 
   .sidebar{background:var(--surface);border-right:1px solid var(--line);
     padding:22px 0;position:sticky;top:0;height:100vh;overflow-y:auto}
@@ -57,7 +59,9 @@
   .sidebar .footer a:hover{color:var(--accent)}
 
   /* ===== MAIN ===== */
-  main{padding:28px 36px 80px;min-width:0}
+  main{padding:28px 36px 80px;min-width:0;max-width:100%}
+  @media (max-width:1000px){main{padding:20px 16px 60px}
+    .headline{padding:20px 18px}.card-body{padding:16px 14px}.card-head{padding:16px 14px}}
   .page-head{margin-bottom:18px;display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:14px}
   .page-head h2{font-size:22px;margin:0;font-weight:700;letter-spacing:-.02em}
   .page-head .pageinfo{color:var(--muted);font-size:12px;font-family:var(--mono);margin-top:2px}
@@ -96,7 +100,7 @@
   .hl-row1{display:flex;align-items:flex-start;gap:24px;flex-wrap:wrap;margin-bottom:22px}
   .hl-row1 .label{color:var(--muted);font-size:12px;letter-spacing:.04em;
     font-family:var(--mono);text-transform:uppercase;margin-bottom:6px}
-  .hl-row1 .big{font-size:48px;font-weight:700;letter-spacing:-.025em;line-height:1;color:var(--accent);
+  .hl-row1 .big{font-size:clamp(28px,5.2vw,48px);overflow-wrap:anywhere;font-weight:700;letter-spacing:-.025em;line-height:1;color:var(--accent);
     border-radius:8px;padding:2px 8px;margin:-2px -8px;display:inline-block}
   .hl-row1 .alt{color:var(--muted);font-size:18px;font-weight:500;margin-left:14px}
   .hl-row1 .delta-block{margin-left:auto;text-align:right}
@@ -105,16 +109,17 @@
   .hl-row1 .delta-block .v.pos{color:var(--bad)}
   .hl-row1 .delta-block .v.neg{color:var(--good)}
 
-  .hl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;
+  /* auto-fit + minmax → 폭이 좁아지면 3열 → 2열 → 1열로 자동 접힘 */
+  .hl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:0 0;
     border-top:1px solid var(--line);padding-top:18px}
   @media (max-width:780px){.hl-grid{grid-template-columns:1fr;gap:18px;padding-top:18px}}
-  .hl-cell{padding:0 28px;border-right:1px solid var(--line)}
+  .hl-cell{padding:0 22px;border-right:1px solid var(--line);min-width:0}
   .hl-cell:first-child{padding-left:0}
   .hl-cell:last-child{border-right:0;padding-right:0}
   @media (max-width:780px){.hl-cell{border-right:0;padding:0}}
   .hl-cell .l{color:var(--muted);font-size:11px;letter-spacing:.04em;
     font-family:var(--mono);text-transform:uppercase}
-  .hl-cell .v{font-size:26px;font-weight:700;margin-top:6px;letter-spacing:-.015em;
+  .hl-cell .v{font-size:clamp(19px,2.1vw,26px);overflow-wrap:anywhere;font-weight:700;margin-top:6px;letter-spacing:-.015em;
     border-radius:5px;padding:2px 6px;margin-left:-6px;display:inline-block}
   .hl-cell .k{color:var(--muted);font-size:12px;font-weight:500;margin-top:1px}
   .hl-cell .d{color:var(--muted);font-size:11.5px;margin-top:4px;font-family:var(--mono)}
@@ -123,11 +128,11 @@
 
   /* ===== CARDS ===== */
   .row{display:grid;gap:18px;margin-top:18px}
-  .row.two{grid-template-columns:1fr 1fr}
-  .row.three{grid-template-columns:1fr 1fr 1fr}
-  @media (max-width:1100px){.row.two,.row.three{grid-template-columns:1fr}}
+  .row.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .row.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+  @media (max-width:1100px){.row.two,.row.three{grid-template-columns:minmax(0,1fr)}}
 
-  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;min-width:0}
   .card-head{padding:18px 22px;display:flex;align-items:center;gap:10px;
     border-bottom:1px solid var(--line-2);flex-wrap:wrap}
   .card-head h3{margin:0;font-size:14px;font-weight:600;font-family:var(--mono)}
@@ -146,11 +151,11 @@
 
   .seg.tabs{margin-left:0;margin-bottom:14px}
 
-  .num-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
-  .num{}
+  .num-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:14px;margin-bottom:14px}
+  .num{min-width:0}
   .num .l{color:var(--muted);font-size:10.5px;letter-spacing:.04em;
     font-family:var(--mono);text-transform:uppercase}
-  .num .v{font-size:24px;font-weight:700;margin-top:3px;letter-spacing:-.015em;color:var(--accent);
+  .num .v{font-size:clamp(18px,1.9vw,24px);overflow-wrap:anywhere;font-weight:700;margin-top:3px;letter-spacing:-.015em;color:var(--accent);
     border-radius:5px;padding:2px 6px;margin-left:-6px;display:inline-block}
   .num .k{color:var(--muted);font-size:11.5px;margin-top:1px}
   .num .d{font-size:11.5px;margin-top:3px;color:var(--muted);font-family:var(--mono)}
@@ -161,7 +166,10 @@
   .chart-wrap.tall{height:280px}
 
   /* ===== TABLES ===== */
-  table.cat{width:100%;border-collapse:collapse;font-size:13px}
+  table.cat{width:100%;border-collapse:collapse;font-size:13px;min-width:460px}
+  /* 표는 페이지를 넓히지 말고 자기 안에서 가로 스크롤 */
+  .card-body{overflow-x:auto}
+  .tbl-scroll{overflow:auto}
   table.cat th{text-align:left;color:var(--dim);font-size:10.5px;
     letter-spacing:.04em;font-weight:500;font-family:var(--mono);
     text-transform:uppercase;padding:10px 12px;border-bottom:1px solid var(--line-2);
@@ -188,8 +196,8 @@
   .legend{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--muted);font-family:var(--mono)}
   .legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle}
 
-  .donut-row{display:grid;grid-template-columns:200px 1fr;gap:24px;align-items:center}
-  @media (max-width:540px){.donut-row{grid-template-columns:1fr}}
+  .donut-row{display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;align-items:center}
+  @media (max-width:540px){.donut-row{grid-template-columns:minmax(0,1fr)}}
   .donut-list{display:flex;flex-direction:column;gap:10px}
   .donut-list .row-i{display:flex;align-items:center;gap:10px;font-size:13px}
   .donut-list .name{flex:1}
