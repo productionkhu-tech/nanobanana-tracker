@@ -259,8 +259,9 @@
             </div>
           </div>
           <div class="delta-block">
-            <div class="label">지난달 동기간 대비</div>
+            <div class="label" id="hl-mom-label">지난달 같은 기간 대비</div>
             <div class="v" id="hl-mom">—</div>
+            <div class="k" id="hl-mom-sub" style="color:var(--muted);font-size:12px;margin-top:3px">—</div>
           </div>
         </div>
         <div class="hl-grid">
@@ -710,14 +711,23 @@ const fmtNum = (v) => state.currency === 'USD' ? usd(v) : krwRaw(v);
 const pickVal = (o, usdKey, krwKey) =>
   (state.currency === 'USD' ? (o[usdKey] || 0) : (o[krwKey] || 0));
 
-function fmtDelta(cur, prev) {
-  if (prev === 0 && cur === 0) return {text:'변화 없음', cls:''};
-  if (prev === 0) return {text:'+' + (state.currency === 'USD' ? usd(cur) : krw(cur, fxRate())) + ' (신규)', cls:'pos'};
-  const d = cur - prev;
-  const pct = (d / Math.max(0.01, Math.abs(prev))) * 100;
-  const sign = d > 0 ? '+' : '';
-  const cls = Math.abs(d) < 0.01 ? '' : (d > 0 ? 'pos' : 'neg');
-  return {text:`${sign}${state.currency === 'USD' ? usd(d) : krw(d, fxRate())} (${sign}${pct.toFixed(0)}%)`, cls};
+// (구 fmtDelta 제거 — USD 증감에 최신 환율을 곱해 과거 원화가 어긋났음.
+//  아래 fmtDeltaT 로 일원화. 다시 도입하지 말 것.)
+// {cost, krw} 쌍끼리 비교. KRW 모드에서는 실제 청구 원화로 증감을 계산한다
+// (USD 증감에 최신 환율을 곱하면 과거 구간이 어긋남).
+function fmtDeltaT(curT, prevT) {
+  const useKrw = state.currency !== 'USD';
+  const cur  = useKrw ? (curT.krw  || 0) : (curT.cost  || 0);
+  const prev = useKrw ? (prevT.krw || 0) : (prevT.cost || 0);
+  const eps  = useKrw ? 1 : 0.01;
+  const show = (v) => useKrw ? krwRaw(v) : usd(v);
+  if (Math.abs(prev) < eps && Math.abs(cur) < eps) return {text:'변화 없음', cls:''};
+  if (Math.abs(prev) < eps) return {text:'+' + show(cur) + ' (신규)', cls:'pos'};
+  const dd = cur - prev;
+  const pct = (dd / Math.abs(prev)) * 100;
+  const sign = dd > 0 ? '+' : '';
+  const cls = Math.abs(dd) < eps ? '' : (dd > 0 ? 'pos' : 'neg');
+  return {text: `${sign}${show(dd)} (${sign}${pct.toFixed(0)}%)`, cls};
 }
 function setDelta(el, dl) {
   el.textContent = dl.text;
@@ -819,9 +829,16 @@ function renderOverview() {
     $('#hl-year-range').textContent = `${d.year_start_date} ~ ${d.today_date}`;
   }
 
-  const mom = fmtDelta(c.month.cost, c.last_month.cost);
-  setDelta($('#hl-mom'), mom);
-  const td = fmtDelta(c.today.cost, c.last_week_same_day.cost);
+  // 이번 달 누적(1~N일)은 '지난달 같은 1~N일'과 비교해야 의미가 있다.
+  // 지난달 '전체'와 비교하면 월초엔 항상 -90%대가 나와 비교가 성립하지 않음.
+  const lmtd = c.last_month_to_date || c.last_month;
+  setDelta($('#hl-mom'), fmtDeltaT(c.month, lmtd));
+  const dayN = Number((d.today_date || '').slice(8, 10)) || null;
+  $('#hl-mom-label').textContent = dayN ? `지난달 같은 기간(1~${dayN}일) 대비` : '지난달 같은 기간 대비';
+  $('#hl-mom-sub').textContent =
+    `지난달 같은 기간 ${fmtT(lmtd, fx)} · 지난달 전체 ${fmtT(c.last_month, fx)}`;
+
+  const td = fmtDeltaT(c.today, c.last_week_same_day);
   setDelta($('#hl-today-d'), {text: td.text + ' vs 지난주', cls: td.cls});
 
   // 각 선은 자기 절대값 높이로 그려짐 (stacking 없음). 두 소스 스케일이
@@ -932,10 +949,14 @@ function renderSourceTab(prefix, src, color, fillColor, chartId, tableId) {
   setVal(prefix+'-year', fmtT(t.year, fx), prefix+'-year');
   $('#'+prefix+'-year-alt').textContent = fmtAltT(t.year, fx);
 
-  const td = fmtDelta(t.today.cost, t.last_week_same_day.cost);
-  setDelta($('#'+prefix+'-today-d'), {text: td.text + ' vs 지난주', cls: td.cls});
-  const md = fmtDelta(t.month.cost, t.last_month.cost);
-  setDelta($('#'+prefix+'-month-d'), {text: md.text + ' vs 지난달', cls: md.cls});
+  const td = fmtDeltaT(t.today, t.last_week_same_day);
+  setDelta($('#'+prefix+'-today-d'), {text: td.text + ' vs 지난주 같은 요일', cls: td.cls});
+  // 이번 달 누적 ↔ 지난달 같은 기간(1~N일)
+  const lmtd = t.last_month_to_date || t.last_month;
+  const md = fmtDeltaT(t.month, lmtd);
+  const dN = Number((src.today_date || '').slice(8, 10)) || null;
+  setDelta($('#'+prefix+'-month-d'),
+           {text: md.text + (dN ? ` vs 지난달 1~${dN}일` : ' vs 지난달 같은 기간'), cls: md.cls});
 
   lineChart(chartId, src.daily, ranges[chartId], (series) => [{
     label: src.primary_label, data: series.map(s=>pickVal(s,'cost','krw')),

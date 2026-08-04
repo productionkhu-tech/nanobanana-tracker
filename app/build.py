@@ -150,6 +150,15 @@ def build_source_view(rows, source, include_pred, normalize_cat, primary_label, 
     last_month_cost = sumr(daily_cost, last_month_start, last_month_end)
     year_cost = sumr(daily_cost, year_start)
 
+    # 지난달 '같은 기간'(1일~오늘과 같은 일자). 이번 달 누적(MTD)과 공정하게 비교하려면
+    # 지난달 '전체'가 아니라 같은 날짜까지만 잘라야 한다.
+    # (예: 8/4에 8월 4일치를 7월 31일치 전체와 비교하면 항상 -90%대가 나옴)
+    lm_len = (today_dt.replace(day=1) - timedelta(days=1)).day
+    n_days = min(today_dt.day, lm_len)
+    lm_td_end = (last_month_end if n_days >= lm_len
+                 else last_month_dt.replace(day=n_days + 1).strftime("%Y-%m-%d"))
+    last_month_td_cost = sumr(daily_cost, last_month_start, lm_td_end)
+
     # 같은 기간을 KRW로도 집계 (GCP는 실제 청구액 합, 그 외는 최신 환율 추정)
     today_krw = daily_krw.get(today, 0.0)
     yesterday_krw = daily_krw.get(yesterday, 0.0)
@@ -158,6 +167,7 @@ def build_source_view(rows, source, include_pred, normalize_cat, primary_label, 
     month_krw = sumr(daily_krw, month_start)
     last_month_krw = sumr(daily_krw, last_month_start, last_month_end)
     year_krw = sumr(daily_krw, year_start)
+    last_month_td_krw = sumr(daily_krw, last_month_start, lm_td_end)
 
     series = []
     cur = datetime.fromisoformat(year_ago)
@@ -233,6 +243,8 @@ def build_source_view(rows, source, include_pred, normalize_cat, primary_label, 
             "last_week_same_day": pair(last_week_same_cost, last_week_same_krw),
             "month":              pair(month_cost, month_krw),
             "last_month":         pair(last_month_cost, last_month_krw),
+            # 지난달 1일~오늘과 같은 일자까지 (MTD 비교용)
+            "last_month_to_date": pair(last_month_td_cost, last_month_td_krw),
             "month_projection":   pair(month_projection, month_projection_krw),
             "year":               pair(year_cost, year_krw),
         },
@@ -324,7 +336,7 @@ def main() -> None:
     _krw = lambda src, k: (src["totals"][k].get("krw") or 0.0)
     combined = {}
     for k in ("today", "yesterday", "week", "last_week_same_day",
-              "month", "last_month", "month_projection", "year"):
+              "month", "last_month", "last_month_to_date", "month_projection", "year"):
         combined[k] = {
             "cost": round(nano["totals"][k]["cost"] + openai["totals"][k]["cost"]
                           + seed["totals"][k]["cost"], 4),
@@ -420,7 +432,7 @@ def main() -> None:
 
     today_dt = datetime.fromisoformat(utc_today_str())
     payload = {
-        "schema_version": 8,
+        "schema_version": 9,   # +totals.last_month_to_date (MTD 공정 비교용)
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "approx_krw_per_usd": round(fx_rate, 4),
         "fx_source": fx_source,
