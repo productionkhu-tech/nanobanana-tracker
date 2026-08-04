@@ -109,7 +109,10 @@ def build_source_view(rows, source, include_pred, normalize_cat, primary_label, 
     last_month_start = last_month_dt.strftime("%Y-%m-%d")
     last_month_end = today_dt.replace(day=1).strftime("%Y-%m-%d")
     year_start = today_dt.replace(month=1, day=1).strftime("%Y-%m-%d")
-    year_ago = (today_dt - timedelta(days=364)).strftime("%Y-%m-%d")
+    # 시계열 시작은 '364일 전'과 '연초' 중 더 이른 쪽.
+    # 364일만 쓰면 윤년 12/31에 series가 1/2부터 시작해 1/1이 빠지고,
+    # totals.year(원본 dict 기준)와 Σdaily 가 어긋난다. (2028-12-31 재현 확인)
+    year_ago = min((today_dt - timedelta(days=364)).strftime("%Y-%m-%d"), year_start)
 
     daily_cost: dict[str, float] = {}
     by_cat_cost: dict[str, dict[str, float]] = {}

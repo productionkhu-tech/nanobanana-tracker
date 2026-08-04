@@ -405,10 +405,12 @@ def collect_byteplus(keys: Keys) -> tuple[int, int | None, str | None]:
 
     now = datetime.now(timezone.utc) + timedelta(hours=8)  # BytePlus 청구일 경계(UTC+8) 근사
     cur_month = now.strftime("%Y-%m")
-    months = [cur_month]
-    if now.day <= 3:
-        prev = (now.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
-        months.insert(0, prev)
+    # 당월 + 전월을 항상 재조회한다.
+    # BytePlus 는 비용 귀속이 30분~1일 지연되고 월말 정산분이 뒤늦게 붙는다.
+    # 예전엔 매월 1~3일에만 전월을 봤는데, 영속 DB(로컬)에서는 그 창을 놓치면
+    # 해당 월이 영구히 과소 집계로 굳어졌다. (2026-07: 로컬 $46.75 vs 실제 $198.97)
+    prev = (now.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+    months = [prev, cur_month]
 
     with conn() as c:
         backfilled = get_meta(c, "bp_backfilled")

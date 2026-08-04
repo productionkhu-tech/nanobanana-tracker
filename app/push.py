@@ -14,6 +14,14 @@ from keys import load
 # In both local and CI: repo root is the dir holding app/, docs/, .github/.
 REPO = Path(__file__).resolve().parent.parent
 
+DATA_JSON_REL = "docs/data.json"
+# CI만 data.json을 발행한다.
+#   CI  : 매 실행 빈 DB에서 전 기간을 새로 수집 → 항상 완전한 집계
+#   로컬: DB가 영속이라 과거 월이 갱신 안 될 수 있음(BytePlus는 당월만 재조회)
+#         → 로컬 빌드 결과를 올리면 과거 데이터가 과소 집계로 덮일 위험
+# 로컬에서도 코드/HTML은 정상적으로 push 된다. data.json 은 다음 CI(5분)가 발행.
+IS_CI = bool(os.environ.get("GITHUB_ACTIONS") or os.environ.get("CI"))
+
 # Files allowed to be committed. .gitignore is the primary gate; this is layer 2.
 WHITELIST_PATTERNS = [
     ".gitignore",
@@ -94,6 +102,15 @@ def stage_whitelisted() -> list[str]:
     # The .gitignore whitelist is the primary gate; this is the second layer.
     for ps in WHITELIST_PATTERNS:
         run(["git", "add", "-A", "--", ps.rstrip("/")], cwd=REPO, check=False)
+    # 로컬에서는 data.json 을 커밋 대상에서 제외하고 원본(HEAD)으로 되돌린다.
+    # → 워킹트리가 항상 '발행본'과 같아져 다음 rebase 충돌도 사라진다.
+    if not IS_CI:
+        staged_now = run(["git", "diff", "--cached", "--name-only"], cwd=REPO).stdout
+        if DATA_JSON_REL in staged_now:
+            run(["git", "reset", "--", DATA_JSON_REL], cwd=REPO, check=False)
+            run(["git", "checkout", "--", DATA_JSON_REL], cwd=REPO, check=False)
+            print(f"[push] 로컬 실행 — {DATA_JSON_REL} 는 발행하지 않음 (CI가 담당)")
+
     # Verify nothing snuck in outside the whitelist
     out = run(["git", "diff", "--cached", "--name-only"], cwd=REPO).stdout
     staged = [l.strip() for l in out.splitlines() if l.strip()]
@@ -121,20 +138,34 @@ def commit_and_push(token: str, user: str, repo: str) -> str:
     diff = run(["git", "diff", "--cached", "--stat"], cwd=REPO).stdout.strip()
     msg = "update data.json\n\n" + (diff or "(no diff)")
     run(["git", "commit", "-m", msg], cwd=REPO, env=env)
-    # Race-resilient push: parallel writers (CI + local) can race, so attempt
-    # push, and if rejected, fetch+rebase keeping OUR freshly-built data.json.
-    # NOTE: in `git rebase`, -X option sides are INVERTED vs merge — "ours" is
-    # the base (origin/main) and "theirs" is the commit being replayed (ours!).
-    # Using -X ours here silently replaced our fresh data with the remote's
-    # (possibly $0 from a failed CI run) — 2026-07-21 incident. -X theirs keeps
-    # the local rebuild, which is always the freshest aggregation.
+    # Race-resilient push. 병렬 writer(CI + 로컬)가 같은 data.json을 건드리므로
+    # 충돌 시 **파일 단위로 통째** 선택한다. -X ours/theirs 는 hunk 단위 3-way
+    # 병합이라 서로 다른 수집 결과가 뒤섞인 franken-JSON이 나올 수 있다.
+    #   docs/data.json → 항상 origin(CI) 것. CI는 매 실행 전체 재수집이라 완전함.
+    #   그 외 (코드/HTML)  → 우리 것.
     for attempt in range(3):
         push = run(["git", "push", "-u", "origin", "main"], cwd=REPO, env=env, check=False)
         if push.returncode == 0:
             break
-        print(f"[push] attempt {attempt+1} rejected — rebasing on origin/main (keep local data)")
+        print(f"[push] attempt {attempt+1} rejected — rebasing on origin/main")
         run(["git", "fetch", "origin", "main"], cwd=REPO, env=env)
-        run(["git", "rebase", "-X", "theirs", "origin/main"], cwd=REPO, env=env, check=False)
+        rb = run(["git", "rebase", "origin/main"], cwd=REPO, env=env, check=False)
+        if rb.returncode != 0:
+            conflicted = [l.strip() for l in run(
+                ["git", "diff", "--name-only", "--diff-filter=U"],
+                cwd=REPO, env=env, check=False).stdout.splitlines() if l.strip()]
+            print(f"[push] conflicts: {conflicted}")
+            for f in conflicted:
+                # rebase 중에는 --ours = upstream(origin/main), --theirs = 우리 커밋
+                side = "--ours" if f == DATA_JSON_REL else "--theirs"
+                run(["git", "checkout", side, "--", f], cwd=REPO, env=env, check=False)
+                run(["git", "add", "--", f], cwd=REPO, env=env, check=False)
+            cont = run(["git", "-c", "core.editor=true", "rebase", "--continue"],
+                       cwd=REPO, env=env, check=False)
+            if cont.returncode != 0:
+                # 우리 변경분이 전부 upstream 것으로 대체돼 커밋할 게 없는 경우
+                run(["git", "-c", "core.editor=true", "rebase", "--skip"],
+                    cwd=REPO, env=env, check=False)
     else:
         raise RuntimeError("push failed after 3 attempts")
     return run(["git", "rev-parse", "HEAD"], cwd=REPO).stdout.strip()
