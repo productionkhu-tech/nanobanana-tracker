@@ -138,11 +138,12 @@ def commit_and_push(token: str, user: str, repo: str) -> str:
     diff = run(["git", "diff", "--cached", "--stat"], cwd=REPO).stdout.strip()
     msg = "update data.json\n\n" + (diff or "(no diff)")
     run(["git", "commit", "-m", msg], cwd=REPO, env=env)
-    # Race-resilient push. 병렬 writer(CI + 로컬)가 같은 data.json을 건드리므로
-    # 충돌 시 **파일 단위로 통째** 선택한다. -X ours/theirs 는 hunk 단위 3-way
-    # 병합이라 서로 다른 수집 결과가 뒤섞인 franken-JSON이 나올 수 있다.
-    #   docs/data.json → 항상 origin(CI) 것. CI는 매 실행 전체 재수집이라 완전함.
-    #   그 외 (코드/HTML)  → 우리 것.
+    # Race-resilient push. 충돌 시 **파일 단위로 통째** 우리 커밋을 채택한다.
+    #   * -X ours/theirs 는 hunk 단위 3-way 병합이라 서로 다른 수집 결과가
+    #     뒤섞인 franken-JSON 이 나올 수 있어 쓰지 않는다.
+    #   * data.json 은 CI만 발행하고(IS_CI), CI 실행은 concurrency group 으로
+    #     직렬화되므로 지금 push 하는 쪽이 항상 가장 최신·완전한 수집 결과다.
+    #   * rebase 중 --theirs = 지금 replay 되는 우리 커밋 (--ours 는 upstream).
     for attempt in range(3):
         push = run(["git", "push", "-u", "origin", "main"], cwd=REPO, env=env, check=False)
         if push.returncode == 0:
@@ -156,9 +157,7 @@ def commit_and_push(token: str, user: str, repo: str) -> str:
                 cwd=REPO, env=env, check=False).stdout.splitlines() if l.strip()]
             print(f"[push] conflicts: {conflicted}")
             for f in conflicted:
-                # rebase 중에는 --ours = upstream(origin/main), --theirs = 우리 커밋
-                side = "--ours" if f == DATA_JSON_REL else "--theirs"
-                run(["git", "checkout", side, "--", f], cwd=REPO, env=env, check=False)
+                run(["git", "checkout", "--theirs", "--", f], cwd=REPO, env=env, check=False)
                 run(["git", "add", "--", f], cwd=REPO, env=env, check=False)
             cont = run(["git", "-c", "core.editor=true", "rebase", "--continue"],
                        cwd=REPO, env=env, check=False)
