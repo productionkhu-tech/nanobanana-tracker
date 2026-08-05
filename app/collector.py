@@ -3,6 +3,7 @@ BytePlus Billing API (Seedream) into SQLite."""
 from __future__ import annotations
 import hashlib
 import hmac
+import os
 import time
 import traceback
 import urllib.parse
@@ -207,17 +208,34 @@ def collect_openai(keys: Keys) -> tuple[int, int | None, str | None]:
         if api_key_id:
             with conn() as c:
                 set_meta(c, cache_key, api_key_id)
-    key_filter = [api_key_id] if api_key_id else None
-    print(f"[oa] filtering costs by api_key_id={api_key_id or '(none — fallback to org-wide)'}")
+    if not api_key_id:
+        # 2차 방어선: 어드민 키 권한이 축소되어 projects/api_keys 목록 조회가
+        # 막히면 위 해석이 실패한다. 그 경우 Secret 으로 주입한 고정 id 사용.
+        api_key_id = os.environ.get("OPENAI_IMAGE_KEY_ID", "").strip() or None
+        if api_key_id:
+            print(f"[oa] api_key_id from OPENAI_IMAGE_KEY_ID env (lookup unavailable)")
+
+    if not api_key_id:
+        # 절대 org 전체로 폴백하지 않는다. 필터가 빠지면 chat/audio/codex 등
+        # 다른 키 비용까지 GPT Image 2 로 합산되어 3배 이상 과다계상된다
+        # (2026-08-05 실측: 필터 $10,969 vs org 전체 $34,448, +214%).
+        # 여기서 예외를 던지면 sync 가 'ok' 로 갱신되지 않아 build.py 의
+        # carry-forward 가 작동 → 마지막 정상값 + '지연 중' 배지로 표시된다.
+        raise RuntimeError(
+            "openai: api_key_id 해석 실패 — org 전체 폴백은 과다계상이므로 중단. "
+            "어드민 키에 organization 읽기 권한(projects, api_keys 목록)이 있는지, "
+            "또는 OPENAI_IMAGE_KEY_ID 시크릿이 설정됐는지 확인하세요."
+        )
+    key_filter = [api_key_id]
+    print(f"[oa] filtering costs by api_key_id={api_key_id}")
 
     # OpenAI's api_key_ids filter only works for time ranges starting on or after
     # ~2025-12-05. Clamp start when we're using the filter. (GPT Image 2 launched
     # 2026-04-21 so we lose no relevant data.)
-    if key_filter:
-        MIN_START_WITH_FILTER = 1764979200  # 2025-12-05 UTC
-        if start < MIN_START_WITH_FILTER:
-            start = MIN_START_WITH_FILTER
-            print(f"[oa] clamped start to {datetime.fromtimestamp(start, tz=timezone.utc):%Y-%m-%d} (api_key filter limit)")
+    MIN_START_WITH_FILTER = 1764979200  # 2025-12-05 UTC
+    if start < MIN_START_WITH_FILTER:
+        start = MIN_START_WITH_FILTER
+        print(f"[oa] clamped start to {datetime.fromtimestamp(start, tz=timezone.utc):%Y-%m-%d} (api_key filter limit)")
 
     # cost_by_line[(date, line_item)] = cost
     cost_by_line: dict[tuple[str, str], float] = {}

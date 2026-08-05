@@ -41,6 +41,9 @@ jobs:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           OPENAI_ADMIN_KEY: ${{ secrets.OPENAI_ADMIN_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # 어드민 키 권한 축소로 api_keys 목록 조회가 막혔을 때의 2차 방어선.
+          # (비밀값 아님 — 인증 불가한 식별자. 그래도 Secret 으로 주입해 공개 저장소에 남기지 않음)
+          OPENAI_IMAGE_KEY_ID: ${{ secrets.OPENAI_IMAGE_KEY_ID }}
           BYTEPLUS_AK: ${{ secrets.BYTEPLUS_AK }}
           BYTEPLUS_SK: ${{ secrets.BYTEPLUS_SK }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
