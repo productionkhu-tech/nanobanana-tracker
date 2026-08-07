@@ -382,9 +382,12 @@ def _bp_month_rows(ak: str, sk: str, month: str) -> tuple[list[dict], int | None
             model = it.get("ConfigName") or "(unknown)"
             key = (date, model)
             if key not in agg:
-                agg[key] = {"cost": 0.0, "pretax": 0.0, "count": 0}
-            agg[key]["cost"] += float(it.get("PosttaxAmount") or 0)      # 실청구(세후)
-            agg[key]["pretax"] += float(it.get("PretaxAmount") or 0)
+                agg[key] = {"cost": 0.0, "posttax": 0.0, "count": 0}
+            # ★ 보고 기준은 세전(PretaxAmount) — 인보이스 "Amount(pre-tax)" 이고,
+            #   시댄스 GAS·주간 리포트도 같은 기준이다. 세후를 쓰면 인보이스 미발행
+            #   월에 세금이 덜 붙어 있어(7월 3.25%, 8월 0%) 달마다 기준이 달라진다.
+            agg[key]["cost"] += float(it.get("PretaxAmount") or 0)       # 표시 기준
+            agg[key]["posttax"] += float(it.get("PosttaxAmount") or 0)   # 참고용(실지불)
             agg[key]["count"] += 1
             if latest_date is None or date > latest_date:
                 latest_date = date
@@ -398,8 +401,8 @@ def _bp_month_rows(ak: str, sk: str, month: str) -> tuple[list[dict], int | None
         "date": date,
         "request_count": v["count"],
         "image_count": None,
-        "cost_usd": round(v["cost"], 6),
-        "gross_cost": round(v["pretax"], 6),
+        "cost_usd": round(v["cost"], 6),       # 세전 (표시 기준)
+        "gross_cost": round(v["posttax"], 6),  # 세후 (참고)
     } for (date, model), v in agg.items()]
 
     last_ts = None
