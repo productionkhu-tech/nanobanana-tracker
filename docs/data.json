@@ -1,29 +1,29 @@
 {
   "schema_version": 9,
-  "generated_at": "2026-08-26T23:56:43+00:00",
+  "generated_at": "2026-08-27T00:01:52+00:00",
   "approx_krw_per_usd": 1451.74,
   "fx_source": "gcp_billing_export",
-  "last_refresh_ts": 1787788602,
+  "last_refresh_ts": 1787788912,
   "sync_status": "ok",
   "current_year": 2026,
   "year_start_date": "2026-01-01",
-  "today_date": "2026-08-26",
+  "today_date": "2026-08-27",
   "totals_combined": {
     "today": {
-      "cost": 364.9475,
-      "krw": 529808.95
+      "cost": 132.1718,
+      "krw": 191879.09
     },
     "yesterday": {
-      "cost": 517.7883,
-      "krw": 751694.04
+      "cost": 652.6102,
+      "krw": 947420.47
     },
     "week": {
-      "cost": 2372.0398,
-      "krw": 3443585.14
+      "cost": 2226.7875,
+      "krw": 3232716.5
     },
     "last_week_same_day": {
-      "cost": 464.6539,
-      "krw": 674556.66
+      "cost": 487.7222,
+      "krw": 708045.83
     },
     "month": {
       "cost": 10858.3934,
@@ -34,12 +34,12 @@
       "krw": 21490410.51
     },
     "last_month_to_date": {
-      "cost": 9708.8777,
-      "krw": 14541012.48
+      "cost": 10187.9294,
+      "krw": 15236470.99
     },
     "month_projection": {
-      "cost": 12895.956,
-      "krw": 18721575.02
+      "cost": 12711.7477,
+      "krw": 18454152.5
     },
     "year": {
       "cost": 37299.1888,
@@ -6280,29 +6280,29 @@
       ],
       "tag_color": "#7c3aed",
       "carried_forward": false,
-      "last_ok_ts": 1787788603
+      "last_ok_ts": 1787788912
     },
     "openai": {
       "primary_label": "GPT Image 2",
       "krw_exact": false,
       "date_basis": "UTC",
-      "today_date": "2026-08-26",
+      "today_date": "2026-08-27",
       "totals": {
         "today": {
+          "cost": 0.0,
+          "krw": 0.0
+        },
+        "yesterday": {
           "cost": 232.7757,
           "krw": 337929.86
         },
-        "yesterday": {
-          "cost": 97.9538,
-          "krw": 142203.43
-        },
         "week": {
-          "cost": 844.7005,
-          "krw": 1226285.55
+          "cost": 699.4482,
+          "krw": 1015416.91
         },
         "last_week_same_day": {
-          "cost": 122.184,
-          "krw": 177379.47
+          "cost": 145.2523,
+          "krw": 210868.64
         },
         "month": {
           "cost": 4171.4261,
@@ -6313,12 +6313,12 @@
           "krw": 10164480.96
         },
         "last_month_to_date": {
-          "cost": 4220.9428,
-          "krw": 6127711.5
+          "cost": 4699.9945,
+          "krw": 6823170.01
         },
         "month_projection": {
-          "cost": 4973.6235,
-          "krw": 7220408.13
+          "cost": 4789.4152,
+          "krw": 6952985.61
         },
         "year": {
           "cost": 14199.1709,
@@ -6328,14 +6328,13 @@
       "category_table": [
         {
           "category": "gpt-image-2",
-          "today": 232.7757,
+          "today": 0.0,
           "month": 4171.4261,
           "total": 14199.0046,
-          "today_krw": 337929.86,
+          "today_krw": 0.0,
           "month_krw": 6055826.17,
           "total_krw": 20613262.95,
           "sparkline": [
-            633.8204,
             711.7333,
             537.1803,
             418.8566,
@@ -6364,7 +6363,8 @@
             0.0,
             135.9798,
             97.9538,
-            232.7757
+            232.7757,
+            0.0
           ]
         },
         {
@@ -6451,11 +6451,6 @@
         }
       ],
       "daily": [
-        {
-          "date": "2025-08-27",
-          "cost": 0.0,
-          "krw": 0.0
-        },
         {
           "date": "2025-08-28",
           "cost": 0.0,
@@ -8275,6 +8270,11 @@
           "date": "2026-08-26",
           "cost": 232.7757,
           "krw": 337929.86
+        },
+        {
+          "date": "2026-08-27",
+          "cost": 0.0,
+          "krw": 0.0
         }
       ],
       "monthly": [
@@ -8306,7 +8306,7 @@
       ],
       "tag_color": "#10a37f",
       "carried_forward": false,
-      "last_ok_ts": 1787788603
+      "last_ok_ts": 1787788912
     },
     "seedream": {
       "primary_label": "Seedream",
@@ -10327,7 +10327,7 @@
       ],
       "tag_color": "#2563eb",
       "carried_forward": false,
-      "last_ok_ts": 1787788603
+      "last_ok_ts": 1787788912
     }
   },
   "notes": {
