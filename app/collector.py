@@ -232,7 +232,10 @@ def collect_openai(keys: Keys) -> tuple[int, int | None, str | None]:
             "organization 읽기 권한(projects, api_keys 목록)이 있는지 확인하세요."
         )
     key_filter = key_ids
-    print(f"[oa] filtering costs by api_key_ids={key_ids}")
+    # 공개 저장소라 Actions 로그도 공개다. api_key_id 는 인증에 못 쓰는 식별자지만
+    # 그대로 남기지 않는다 (Secret 이 쉼표 결합값이라 개별 id 는 자동 마스킹 안 됨).
+    print(f"[oa] filtering costs by {len(key_ids)} api_key_id(s): "
+          + ", ".join("…" + k[-4:] for k in key_ids))
 
     # OpenAI's api_key_ids filter only works for time ranges starting on or after
     # ~2025-12-05. Clamp start when we're using the filter. (GPT Image 2 launched
