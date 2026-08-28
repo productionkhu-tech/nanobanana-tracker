@@ -196,38 +196,43 @@ def collect_openai(keys: Keys) -> tuple[int, int | None, str | None]:
     end = _now_ts() + 24 * 3600
     start = _now_ts() - 400 * 24 * 3600
 
-    # Resolve & cache the api_key_id matching keys.openai_api. Cache is keyed
-    # by the secret's last-4-suffix so rotating the OpenAI key auto-invalidates.
-    suffix = keys.openai_api[-4:]
-    cache_key = f"openai_api_key_id__{suffix}"
-    with conn() as c:
-        cached_id = get_meta(c, cache_key)
-    api_key_id = cached_id
-    if not api_key_id:
-        api_key_id = _find_api_key_id(keys.openai_admin, keys.openai_api)
+    # 어떤 api_key_id 들의 비용을 GPT Image 2 로 집계할지 결정한다.
+    #
+    # OPENAI_IMAGE_KEY_ID(쉼표 구분)가 최우선이다. 키를 교체하면 과거 비용은
+    # 옛 id 로만, 새 사용분은 새 id 로만 조회되므로 두 id 를 모두 넣어야 이력이
+    # 끊기지 않는다. (2026-08-28 키 로테이션 때 실제로 발생: 옛 키 삭제 후에도
+    # 옛 id 로 과거 102일치 $14,386 이 그대로 조회됨)
+    env_ids = [x.strip() for x in os.environ.get("OPENAI_IMAGE_KEY_ID", "").split(",") if x.strip()]
+    key_ids: list[str] = list(dict.fromkeys(env_ids))   # 순서 유지 중복 제거
+    if key_ids:
+        print(f"[oa] api_key_ids from OPENAI_IMAGE_KEY_ID ({len(key_ids)}개)")
+    else:
+        # 폴백: sk-proj 키 끝 4자리로 id 역추적. 캐시는 suffix 로 키잉해서
+        # 키를 바꾸면 자동 무효화된다.
+        suffix = keys.openai_api[-4:]
+        cache_key = f"openai_api_key_id__{suffix}"
+        with conn() as c:
+            cached_id = get_meta(c, cache_key)
+        api_key_id = cached_id or _find_api_key_id(keys.openai_admin, keys.openai_api)
         if api_key_id:
-            with conn() as c:
-                set_meta(c, cache_key, api_key_id)
-    if not api_key_id:
-        # 2차 방어선: 어드민 키 권한이 축소되어 projects/api_keys 목록 조회가
-        # 막히면 위 해석이 실패한다. 그 경우 Secret 으로 주입한 고정 id 사용.
-        api_key_id = os.environ.get("OPENAI_IMAGE_KEY_ID", "").strip() or None
-        if api_key_id:
-            print(f"[oa] api_key_id from OPENAI_IMAGE_KEY_ID env (lookup unavailable)")
+            if not cached_id:
+                with conn() as c:
+                    set_meta(c, cache_key, api_key_id)
+            key_ids = [api_key_id]
 
-    if not api_key_id:
+    if not key_ids:
         # 절대 org 전체로 폴백하지 않는다. 필터가 빠지면 chat/audio/codex 등
-        # 다른 키 비용까지 GPT Image 2 로 합산되어 3배 이상 과다계상된다
-        # (2026-08-05 실측: 필터 $10,969 vs org 전체 $34,448, +214%).
+        # 다른 키 비용까지 GPT Image 2 로 합산되어 크게 과다계상된다
+        # (2026-08-28 실측: 필터 $14,386 vs org 전체 $37,914, +164%).
         # 여기서 예외를 던지면 sync 가 'ok' 로 갱신되지 않아 build.py 의
         # carry-forward 가 작동 → 마지막 정상값 + '지연 중' 배지로 표시된다.
         raise RuntimeError(
-            "openai: api_key_id 해석 실패 — org 전체 폴백은 과다계상이므로 중단. "
-            "어드민 키에 organization 읽기 권한(projects, api_keys 목록)이 있는지, "
-            "또는 OPENAI_IMAGE_KEY_ID 시크릿이 설정됐는지 확인하세요."
+            "openai: api_key_id 확정 실패 — org 전체 폴백은 과다계상이므로 중단. "
+            "OPENAI_IMAGE_KEY_ID 시크릿(쉼표 구분)이 설정됐는지, 또는 어드민 키에 "
+            "organization 읽기 권한(projects, api_keys 목록)이 있는지 확인하세요."
         )
-    key_filter = [api_key_id]
-    print(f"[oa] filtering costs by api_key_id={api_key_id}")
+    key_filter = key_ids
+    print(f"[oa] filtering costs by api_key_ids={key_ids}")
 
     # OpenAI's api_key_ids filter only works for time ranges starting on or after
     # ~2025-12-05. Clamp start when we're using the filter. (GPT Image 2 launched
