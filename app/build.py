@@ -95,9 +95,52 @@ def iso_week_monday(d_iso: str) -> str:
     return monday.strftime("%Y-%m-%d")
 
 
-def build_source_view(rows, source, include_pred, normalize_cat, primary_label, fx_rate=None):
-    """fx_rate: 원본이 USD인 소스(OpenAI/BytePlus)의 KRW 추정에 쓰는 최신 환율.
-    GCP는 행에 실제 청구 KRW(cost_krw)가 있으므로 환율을 쓰지 않는다."""
+def build_fx_map(rows, latest_rate):
+    """GCP 행의 (원화, 달러) 쌍에서 그 시점 GCP가 실제 적용한 환율을 역산한다.
+
+    달러 청구 소스(OpenAI/BytePlus)의 원화 환산에 쓴다. 예전엔 '최신 환율 하나'를
+    과거 전 기간에 일괄 적용해서, 환율이 높던 달의 비용이 과소 표시됐다
+    (2026-08-28 실측: 7월 GPT가 ₩581,027 = 5.72% 과소, 전체 3.32% 과소).
+    GCP 환율은 월 단위로 고정되므로 일별 → 월별 → 인접 월 순으로 폴백한다.
+    """
+    day_acc: dict[str, list[float]] = {}
+    for r in rows:
+        if r["source"] != "gcp":
+            continue
+        usd = r["cost_usd"] or 0.0
+        krw = (r["cost_krw"] if "cost_krw" in r.keys() else None) or 0.0
+        if usd > 0 and krw > 0:
+            a = day_acc.setdefault(r["date"], [0.0, 0.0])
+            a[0] += krw
+            a[1] += usd
+    day_rate = {d: k / u for d, (k, u) in day_acc.items() if u > 0}
+    mon_acc: dict[str, list[float]] = {}
+    for d, (k, u) in day_acc.items():
+        a = mon_acc.setdefault(d[:7], [0.0, 0.0])
+        a[0] += k
+        a[1] += u
+    month_rate = {m: k / u for m, (k, u) in mon_acc.items() if u > 0}
+    months = sorted(month_rate)
+
+    def fx_for(date: str) -> float:
+        if date in day_rate:
+            return day_rate[date]
+        m = date[:7]
+        if m in month_rate:
+            return month_rate[m]
+        earlier = [x for x in months if x <= m]
+        if earlier:
+            return month_rate[earlier[-1]]     # 가장 가까운 이전 달
+        if months:
+            return month_rate[months[0]]       # GCP 데이터보다 앞선 기간
+        return latest_rate                     # GCP 행이 전혀 없을 때
+
+    return fx_for, month_rate
+
+
+def build_source_view(rows, source, include_pred, normalize_cat, primary_label, fx_for=None):
+    """fx_for: 날짜 -> 그 시점 환율. 원본이 USD인 소스(OpenAI/BytePlus)의 KRW
+    환산에 쓴다. GCP는 행에 실제 청구 KRW(cost_krw)가 있어 환율을 쓰지 않는다."""
     # Use the date convention this source's collector wrote (Pacific for GCP, UTC for OpenAI).
     today = today_str_for_source(source)
     today_dt = datetime.fromisoformat(today)
@@ -130,13 +173,14 @@ def build_source_view(rows, source, include_pred, normalize_cat, primary_label, 
         by_cat_cost.setdefault(cat, {})
         by_cat_cost[cat][d] = by_cat_cost[cat].get(d, 0.0) + cost
 
-        # 원본 KRW가 있으면 그대로(=그달 GCP 적용 환율 반영), 없으면 최신 환율 추정
+        # 원본 KRW가 있으면 그대로(=실제 청구액), 없으면 '그 날짜' 환율로 환산.
+        # 최신 환율을 과거에 일괄 적용하면 안 된다 (환율 변동폭 최대 5.7%).
         raw_krw = r["cost_krw"] if "cost_krw" in r.keys() else None
         if raw_krw is not None:
             krw = float(raw_krw)
             krw_exact = True
         else:
-            krw = cost * (fx_rate or 0)
+            krw = cost * (fx_for(d) if fx_for else 0.0)
         daily_krw[d] = daily_krw.get(d, 0.0) + krw
         by_cat_krw.setdefault(cat, {})
         by_cat_krw[cat][d] = by_cat_krw[cat].get(d, 0.0) + krw
@@ -303,6 +347,11 @@ def main() -> None:
                 return keep, True
         return build_fn(), False
 
+    fx_for, fx_month_rate = build_fx_map(rows, fx_rate)
+    if fx_month_rate:
+        _ms = sorted(fx_month_rate)
+        print(f"[build] fx 월별 환율 {len(_ms)}개월: "
+              + ", ".join(f"{m}={fx_month_rate[m]:.2f}" for m in _ms[-4:]))
     nano, nano_carried = view_or_carry("gcp", "nanobanana", lambda: build_source_view(
         rows, source="gcp",
         include_pred=lambda cat: cat in NANOBANANA_SERVICES,
@@ -312,12 +361,12 @@ def main() -> None:
         rows, source="openai",
         include_pred=is_image_line,
         normalize_cat=consolidate_openai_model,
-        primary_label="GPT Image 2", fx_rate=fx_rate))
+        primary_label="GPT Image 2", fx_for=fx_for))
     seed, seed_carried = view_or_carry("byteplus", "seedream", lambda: build_source_view(
         rows, source="byteplus",
         include_pred=lambda cat: True,
         normalize_cat=consolidate_seedream_model,
-        primary_label="Seedream", fx_rate=fx_rate))
+        primary_label="Seedream", fx_for=fx_for))
 
     # 소스별 '마지막 성공 수집 시각'. 정상 수집이면 지금, carry-forward면 직전
     # 발행본의 값을 계승 → "언제부터 갱신 지연 중"인지 대시보드가 표시할 수 있음.
