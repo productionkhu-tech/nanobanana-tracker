@@ -202,7 +202,8 @@ def collect_openai(keys: Keys) -> tuple[int, int | None, str | None]:
     # 옛 id 로만, 새 사용분은 새 id 로만 조회되므로 두 id 를 모두 넣어야 이력이
     # 끊기지 않는다. (2026-08-28 키 로테이션 때 실제로 발생: 옛 키 삭제 후에도
     # 옛 id 로 과거 102일치 $14,386 이 그대로 조회됨)
-    env_ids = [x.strip() for x in os.environ.get("OPENAI_IMAGE_KEY_ID", "").split(",") if x.strip()]
+    raw_ids = os.environ.get("OPENAI_IMAGE_KEY_ID", "").strip() or keys.openai_image_key_ids
+    env_ids = [x.strip() for x in raw_ids.split(",") if x.strip()]
     key_ids: list[str] = list(dict.fromkeys(env_ids))   # 순서 유지 중복 제거
     if key_ids:
         print(f"[oa] api_key_ids from OPENAI_IMAGE_KEY_ID ({len(key_ids)}개)")

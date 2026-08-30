@@ -17,6 +17,10 @@ class Keys:
     github_token: str
     byteplus_ak: str = ""   # BytePlus IAM Access Key (Seedream) — 없으면 수집 스킵
     byteplus_sk: str = ""
+    # GPT Image 2 비용 필터용 api_key_id 목록(쉼표 구분). 키 로테이션 시 옛 id 를
+    # 남겨둬야 과거 비용이 조회된다 (OpenAI costs 는 키별 귀속이라 새 id 만 쓰면
+    # 로테이션 이전 이력이 통째로 빠짐 — 2026-08-28 로테이션 때 확인).
+    openai_image_key_ids: str = ""
     github_user: str = "productionkhu-tech"
     github_repo: str = "nanobanana-tracker"
 
@@ -70,6 +74,7 @@ def _load_ci() -> Keys | None:
         github_token=token,  # `ghs_...` in CI
         byteplus_ak=os.environ.get("BYTEPLUS_AK", "").strip(),
         byteplus_sk=os.environ.get("BYTEPLUS_SK", "").strip(),
+        openai_image_key_ids=os.environ.get("OPENAI_IMAGE_KEY_ID", "").strip(),
     )
 
 
@@ -121,11 +126,16 @@ def _load_local() -> Keys:
         if not (bp_ak and bp_sk):
             raise RuntimeError("byteplus_key.txt: expected AK line then SK line")
 
+    # GPT Image 2 api_key_id 목록 (선택) — config/openai_image_key_ids.txt
+    ids_file = config / "openai_image_key_ids.txt"
+    image_ids = ids_file.read_text(encoding="utf-8").strip() if ids_file.exists() else ""
+
     return Keys(
         gcp_sa_path=sa_path, gcp_project=project,
         openai_api=api, openai_admin=admin,
         github_token=token,
         byteplus_ak=bp_ak, byteplus_sk=bp_sk,
+        openai_image_key_ids=image_ids,
     )
 
 
