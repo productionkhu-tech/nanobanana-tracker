@@ -212,7 +212,7 @@ def _legacy_openai_lines(keys: Keys) -> dict[tuple[str, str], float]:
                 for res in b.get("results", []):
                     v = float((res.get("amount") or {}).get("value") or 0)
                     if v:
-                        key = (date, res.get("line_item") or "unknown")
+                        key = (date, res.get("line_item") or "(unknown)")
                         lines[key] = lines.get(key, 0.0) + v
             print(f"[oa] legacy org live: {len(lines)} lines")
             return lines
@@ -221,7 +221,7 @@ def _legacy_openai_lines(keys: Keys) -> dict[tuple[str, str], float]:
     snap = Path(__file__).resolve().parent / "legacy_openai_costs.json"
     if snap.exists():
         for r in json.loads(snap.read_text(encoding="utf-8")).get("rows", []):
-            key = (r["date"], r.get("line_item") or "unknown")
+            key = (r["date"], r.get("line_item") or "(unknown)")
             lines[key] = lines.get(key, 0.0) + float(r["cost_usd"] or 0)
         print(f"[oa] legacy org snapshot: {len(lines)} lines")
     else:
