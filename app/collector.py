@@ -3,10 +3,12 @@ BytePlus Billing API (Seedream) into SQLite."""
 from __future__ import annotations
 import hashlib
 import hmac
+import json
 import os
 import time
 import traceback
 import urllib.parse
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -188,6 +190,45 @@ def _openai_paginate(endpoint: str, admin_key: str, start: int, end: int,
         params["page"] = next_page
 
 
+def _legacy_openai_lines(keys: Keys) -> dict[tuple[str, str], float]:
+    """(date, line_item) -> cost. 2026-09-01 조직 이사 이전(옛 조직) 이력.
+
+    옛 조직 admin 키가 살아있으면 라이브 조회(잔여 사용분·재귀속 반영), 막히면
+    저장소에 고정한 legacy_openai_costs.json 스냅샷으로 폴백. 옛 키는 더 이상
+    쓰지 않으므로 스냅샷은 시간이 지나도 정확하다. CI 는 매 실행 빈 DB 로
+    시작하기 때문에 이 병합이 없으면 과거 이력이 발행본에서 통째로 빠진다.
+    """
+    ids = [x.strip() for x in keys.openai_legacy_key_ids.split(",") if x.strip()]
+    lines: dict[tuple[str, str], float] = {}
+    if keys.openai_legacy_admin and ids:
+        try:
+            for b in _openai_paginate("costs", keys.openai_legacy_admin, 1764979200,
+                                      _now_ts() + 24 * 3600, limit=180,
+                                      group_by=["line_item"], api_key_ids=ids):
+                ts = b.get("start_time")
+                if ts is None:
+                    continue
+                date = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
+                for res in b.get("results", []):
+                    v = float((res.get("amount") or {}).get("value") or 0)
+                    if v:
+                        key = (date, res.get("line_item") or "unknown")
+                        lines[key] = lines.get(key, 0.0) + v
+            print(f"[oa] legacy org live: {len(lines)} lines")
+            return lines
+        except Exception as e:
+            print(f"[oa] legacy org live failed → snapshot: {type(e).__name__}: {str(e)[:100]}")
+    snap = Path(__file__).resolve().parent / "legacy_openai_costs.json"
+    if snap.exists():
+        for r in json.loads(snap.read_text(encoding="utf-8")).get("rows", []):
+            key = (r["date"], r.get("line_item") or "unknown")
+            lines[key] = lines.get(key, 0.0) + float(r["cost_usd"] or 0)
+        print(f"[oa] legacy org snapshot: {len(lines)} lines")
+    else:
+        print("[oa] legacy org: admin/snapshot 둘 다 없음 — 과거 이력 누락 위험!")
+    return lines
+
+
 def collect_openai(keys: Keys) -> tuple[int, int | None, str | None]:
     # IMPORTANT: end_time MUST be in the future, otherwise OpenAI omits the
     # current (in-progress) day bucket from the response — this is why "today"
@@ -290,6 +331,14 @@ def collect_openai(keys: Keys) -> tuple[int, int | None, str | None]:
             images_by_date[date] = (prev[0] + imgs, prev[1] + reqs)
     except Exception as e:
         print(f"[oa] usage/images skipped (non-critical): {type(e).__name__}: {e}")
+
+    # ── 옛 조직 이력 병합 (같은 date+line_item 은 합산 — 덮어쓰면 손실) ──
+    for lk, lv in _legacy_openai_lines(keys).items():
+        cost_by_line[lk] = cost_by_line.get(lk, 0.0) + lv
+    if cost_by_line:
+        _mx = max(d for d, _ in cost_by_line)
+        _mts = int(datetime.fromisoformat(_mx).replace(tzinfo=timezone.utc).timestamp())
+        last_data_ts = max(last_data_ts or 0, _mts)
 
     rows_out: list[dict] = []
     # one row per (date, line_item) with cost only

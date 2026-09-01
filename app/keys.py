@@ -21,6 +21,10 @@ class Keys:
     # 남겨둬야 과거 비용이 조회된다 (OpenAI costs 는 키별 귀속이라 새 id 만 쓰면
     # 로테이션 이전 이력이 통째로 빠짐 — 2026-08-28 로테이션 때 확인).
     openai_image_key_ids: str = ""
+    # 2026-09-01 조직 이사: 옛 조직 이력 조회용. admin 이 죽으면 collector 가
+    # 저장소의 legacy_openai_costs.json 스냅샷으로 자동 폴백한다.
+    openai_legacy_admin: str = ""
+    openai_legacy_key_ids: str = ""
     github_user: str = "productionkhu-tech"
     github_repo: str = "nanobanana-tracker"
 
@@ -75,6 +79,8 @@ def _load_ci() -> Keys | None:
         byteplus_ak=os.environ.get("BYTEPLUS_AK", "").strip(),
         byteplus_sk=os.environ.get("BYTEPLUS_SK", "").strip(),
         openai_image_key_ids=os.environ.get("OPENAI_IMAGE_KEY_ID", "").strip(),
+        openai_legacy_admin=os.environ.get("OPENAI_LEGACY_ADMIN_KEY", "").strip(),
+        openai_legacy_key_ids=os.environ.get("OPENAI_LEGACY_KEY_IDS", "").strip(),
     )
 
 
@@ -130,12 +136,21 @@ def _load_local() -> Keys:
     ids_file = config / "openai_image_key_ids.txt"
     image_ids = ids_file.read_text(encoding="utf-8").strip() if ids_file.exists() else ""
 
+    # 옛 조직(2026-09-01 이사 전) — config/openai_legacy.txt: 1행 admin, 2행 id들
+    leg_admin = leg_ids = ""
+    leg_file = config / "openai_legacy.txt"
+    if leg_file.exists():
+        _ll = [l.strip() for l in leg_file.read_text(encoding="utf-8").splitlines() if l.strip()]
+        if len(_ll) >= 2 and _ll[0].startswith("sk-admin-"):
+            leg_admin, leg_ids = _ll[0], _ll[1]
+
     return Keys(
         gcp_sa_path=sa_path, gcp_project=project,
         openai_api=api, openai_admin=admin,
         github_token=token,
         byteplus_ak=bp_ak, byteplus_sk=bp_sk,
         openai_image_key_ids=image_ids,
+        openai_legacy_admin=leg_admin, openai_legacy_key_ids=leg_ids,
     )
 
 

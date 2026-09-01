@@ -44,6 +44,9 @@ jobs:
           # 어드민 키 권한 축소로 api_keys 목록 조회가 막혔을 때의 2차 방어선.
           # (비밀값 아님 — 인증 불가한 식별자. 그래도 Secret 으로 주입해 공개 저장소에 남기지 않음)
           OPENAI_IMAGE_KEY_ID: ${{ secrets.OPENAI_IMAGE_KEY_ID }}
+          # 2026-09-01 조직 이사 — 옛 조직 이력 라이브 조회용 (죽으면 스냅샷 폴백)
+          OPENAI_LEGACY_ADMIN_KEY: ${{ secrets.OPENAI_LEGACY_ADMIN_KEY }}
+          OPENAI_LEGACY_KEY_IDS: ${{ secrets.OPENAI_LEGACY_KEY_IDS }}
           BYTEPLUS_AK: ${{ secrets.BYTEPLUS_AK }}
           BYTEPLUS_SK: ${{ secrets.BYTEPLUS_SK }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
