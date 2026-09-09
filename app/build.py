@@ -270,6 +270,33 @@ def build_source_view(rows, source, include_pred, normalize_cat, primary_label, 
         })
     cat_table.sort(key=lambda x: -x["total"])
 
+    # 사용 중단된 미미한 모델은 한 줄로 접는다. 표에 "0.0% / $0.00 / $0.00 / $0.10"
+    # 같은 행이 남아 시선을 뺏기 때문. 단 **금액은 절대 버리지 않는다** — 접은 값을
+    # '기타' 행에 합산해 Σ(행) == totals 불변식을 유지한다(감사가 이걸 검증함).
+    DORMANT_MAX_TOTAL = 1.0    # 누적 $1 미만이고
+    live, dormant = [], []     # 이번 달 사용이 0인 것만 대상
+    for row in cat_table:
+        if row["total"] < DORMANT_MAX_TOTAL and row["month"] == 0 and row["today"] == 0:
+            dormant.append(row)
+        else:
+            live.append(row)
+    d_usd = round(sum(r["total"] for r in dormant), 4)
+    d_krw = round(sum(r["total_krw"] for r in dormant), 2)
+    if dormant and d_usd == 0 and d_krw == 0:
+        # 전부 정확히 $0 (무료 티어 등) — 합계에 기여가 없으니 행째로 제거.
+        cat_table = live
+    elif len(dormant) >= 2:    # 1개뿐이면 접어도 줄 수가 같아 의미 없음
+        merged = {
+            "category": f"기타 (중단된 모델 {len(dormant)}종)",
+            "today": 0.0, "month": 0.0,
+            "total": d_usd,
+            "today_krw": 0.0, "month_krw": 0.0,
+            "total_krw": d_krw,
+            "sparkline": [0.0] * len(dormant[0]["sparkline"]),
+            "merged_from": [r["category"] for r in dormant],
+        }
+        cat_table = live + [merged]
+
     days_into_month = today_dt.day
     last_day_of_month = (today_dt.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
     days_in_month_n = last_day_of_month.day
