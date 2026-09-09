@@ -19,8 +19,17 @@ def is_image_line(line_item: str) -> bool:
 
 
 def consolidate_openai_model(line_item: str) -> str:
+    """토큰 종류(image/text, input/output)는 모델 하나로 합치되 모델은 구분한다.
+
+    line_item 실측 형태 (2026-09-09):
+      'gpt-image-2-2026-04-21 image, output'   → gpt-image-2      (날짜 스냅샷 제거)
+      'gpt-image-2.5-sunburst image, output'   → gpt-image-2.5-sunburst
+      'gpt-image-2.5-flare text, input'        → gpt-image-2.5-flare
+    예전 정규식 (gpt-image-\d+) 는 '2.5' 의 '.' 에서 끊겨 2.5 계열이 전부
+    gpt-image-2 로 뭉개졌다 (비용 누락은 아니고 분류만 오염).
+    """
     s = (line_item or "").lower()
-    m = re.match(r"(gpt-image-\d+)", s)
+    m = re.match(r"(gpt-image-[0-9.]+(?:-[a-z]+)*?)(?:-\d{4}-\d{2}-\d{2})?(?:[\s,]|$)", s)
     if m: return m.group(1)
     m = re.match(r"(dall-e\s*\d+)", s)
     if m: return m.group(1).replace("  ", " ")
