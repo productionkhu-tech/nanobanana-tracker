@@ -370,7 +370,7 @@ def main() -> None:
         rows, source="openai",
         include_pred=is_image_line,
         normalize_cat=consolidate_openai_model,
-        primary_label="GPT Image 2", fx_for=fx_for))
+        primary_label="GPT Image", fx_for=fx_for))
     seed, seed_carried = view_or_carry("byteplus", "seedream", lambda: build_source_view(
         rows, source="byteplus",
         include_pred=lambda cat: True,
