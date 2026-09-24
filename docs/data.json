@@ -1,9 +1,9 @@
 {
   "schema_version": 9,
-  "generated_at": "2026-09-24T15:56:30+00:00",
+  "generated_at": "2026-09-24T16:02:40+00:00",
   "approx_krw_per_usd": 1383.28,
   "fx_source": "gcp_billing_export",
-  "last_refresh_ts": 1790265390,
+  "last_refresh_ts": 1790265760,
   "sync_status": "ok",
   "current_year": 2026,
   "year_start_date": "2026-01-01",
@@ -14,16 +14,16 @@
       "krw": 1112.59
     },
     "yesterday": {
-      "cost": 29.7068,
-      "krw": 41092.86
+      "cost": 17.4468,
+      "krw": 24133.85
     },
     "week": {
-      "cost": 449.5613,
-      "krw": 621869.15
+      "cost": 434.5713,
+      "krw": 601133.78
     },
     "last_week_same_day": {
-      "cost": 347.567,
-      "krw": 480782.44
+      "cost": 344.187,
+      "krw": 476106.96
     },
     "month": {
       "cost": 5006.8897,
@@ -34,12 +34,12 @@
       "krw": 17120290.29
     },
     "last_month_to_date": {
-      "cost": 9934.0516,
-      "krw": 14421660.02
+      "cost": 9975.4516,
+      "krw": 14481762.06
     },
     "month_projection": {
-      "cost": 6258.6122,
-      "krw": 8657413.09
+      "cost": 6226.9597,
+      "krw": 8613628.82
     },
     "year": {
       "cost": 43240.6304,
@@ -4061,6 +4061,17 @@
       "gpt_krw": 1112.59,
       "seed_krw": 0.0,
       "total_krw": 1112.59
+    },
+    {
+      "date": "2026-09-25",
+      "nano": 0.0,
+      "gpt": 0.0,
+      "seed": 0.0,
+      "total": 0.0,
+      "nano_krw": 0.0,
+      "gpt_krw": 0.0,
+      "seed_krw": 0.0,
+      "total_krw": 0.0
     }
   ],
   "combined_weekly": [
@@ -6285,7 +6296,7 @@
       ],
       "tag_color": "#7c3aed",
       "carried_forward": false,
-      "last_ok_ts": 1790265390
+      "last_ok_ts": 1790265760
     },
     "openai": {
       "primary_label": "GPT Image",
@@ -8361,29 +8372,29 @@
       ],
       "tag_color": "#10a37f",
       "carried_forward": false,
-      "last_ok_ts": 1790265390
+      "last_ok_ts": 1790265760
     },
     "seedream": {
       "primary_label": "Seedream",
       "krw_exact": false,
       "date_basis": "UTC+8",
-      "today_date": "2026-09-24",
+      "today_date": "2026-09-25",
       "totals": {
         "today": {
           "cost": 0.0,
           "krw": 0.0
         },
         "yesterday": {
-          "cost": 12.26,
-          "krw": 16959.01
+          "cost": 0.0,
+          "krw": 0.0
         },
         "week": {
-          "cost": 44.28,
-          "krw": 61251.64
+          "cost": 29.29,
+          "krw": 40516.27
         },
         "last_week_same_day": {
-          "cost": 18.37,
-          "krw": 25410.85
+          "cost": 14.99,
+          "krw": 20735.37
         },
         "month": {
           "cost": 633.05,
@@ -8394,12 +8405,12 @@
           "krw": 1892052.74
         },
         "last_month_to_date": {
-          "cost": 1037.29,
-          "krw": 1505875.38
+          "cost": 1078.69,
+          "krw": 1565977.42
         },
         "month_projection": {
-          "cost": 791.3125,
-          "krw": 1094606.75
+          "cost": 759.66,
+          "krw": 1050822.48
         },
         "year": {
           "cost": 2134.55,
@@ -8416,7 +8427,6 @@
           "month_krw": 875685.4,
           "total_krw": 3071920.64,
           "sparkline": [
-            66.39,
             58.38,
             50.82,
             8.84,
@@ -8445,16 +8455,12 @@
             12.76,
             4.27,
             12.26,
+            0.0,
             0.0
           ]
         }
       ],
       "daily": [
-        {
-          "date": "2025-09-25",
-          "cost": 0.0,
-          "krw": 0.0
-        },
         {
           "date": "2025-09-26",
           "cost": 0.0,
@@ -10274,6 +10280,11 @@
           "date": "2026-09-24",
           "cost": 0.0,
           "krw": 0.0
+        },
+        {
+          "date": "2026-09-25",
+          "cost": 0.0,
+          "krw": 0.0
         }
       ],
       "monthly": [
@@ -10305,7 +10316,7 @@
       ],
       "tag_color": "#2563eb",
       "carried_forward": false,
-      "last_ok_ts": 1790265390
+      "last_ok_ts": 1790265760
     }
   },
   "notes": {
