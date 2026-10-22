@@ -423,7 +423,10 @@ def _bp_month_rows(ak: str, sk: str, month: str) -> tuple[list[dict], int | None
     """한 달치 Seedream(이미지 생성) 청구 라인 → (date, model)별 usage_daily 행."""
     agg: dict[tuple[str, str], dict] = {}
     latest_date = None
-    offset, limit, total = 0, 300, 0
+    offset, limit = 0, 300
+    total: int | None = None    # API 가 알려주는 전체 라인 수 (전 제품 기준)
+    seen = 0                    # 실제로 받아온 라인 수
+    empty_retries = 0
     while True:
         body = _bp_sign_and_get(ak, sk, "ListSplitBillDetail", {
             "BillPeriod": month, "Limit": str(limit), "Offset": str(offset),
@@ -431,7 +434,27 @@ def _bp_month_rows(ak: str, sk: str, month: str) -> tuple[list[dict], int | None
         })
         result = body.get("Result") or {}
         items = result.get("List") or []
-        total = result.get("Total") or 0
+        if result.get("Total") is not None and total is None:
+            # 첫 페이지의 Total 만 목표치로 고정한다. 당월은 조회하는 20초 사이에도
+            # 라인이 늘어나서, 매 페이지 Total 을 쓰면 영원히 따라잡지 못한다.
+            total = int(result["Total"])
+
+        # 빈 페이지가 '끝'인지 '스로틀링된 부분응답'인지 구분한다.
+        # 예전엔 `not items` 면 무조건 완료로 봤다 → 스로틀 한 번에 과거 월까지
+        # 통째로 날아간 값이 정상으로 발행됐다 (2026-10-22: $3,053 → $524 발행 사고).
+        if not items:
+            if total is not None and offset >= total:
+                break                       # 정상 종료
+            if empty_retries < 3:
+                empty_retries += 1
+                time.sleep(2 * empty_retries)
+                continue                    # 같은 offset 재시도
+            raise RuntimeError(
+                f"byteplus {month}: offset {offset} 에서 빈 응답 (total={total}) — "
+                "부분 데이터 발행 방지를 위해 중단")
+        empty_retries = 0
+        seen += len(items)
+
         for it in items:
             if (it.get("Product") or "") != BP_IMAGE_PRODUCT:
                 continue
@@ -450,8 +473,20 @@ def _bp_month_rows(ak: str, sk: str, month: str) -> tuple[list[dict], int | None
             if latest_date is None or date > latest_date:
                 latest_date = date
         offset += limit
-        if offset >= total or not items:
+        if total is None or offset >= total:
             break
+
+    # 완결성 검증: 받은 라인 수가 API 가 말한 전체보다 적으면 부분 데이터다.
+    # 여기서 예외를 던지면 run() 이 sync 를 'error' 로 기록 → build 의
+    # carry-forward 가 작동해 마지막 정상값 + '지연 중' 배지로 표시된다.
+    # 당월은 조회 중 신규 라인·정렬 변동으로 몇 건 어긋날 수 있다. 막으려는 건
+    # 페이지가 통째로 빠지는 '대량 누락'이므로 0.5%(최소 5건) 까지만 허용한다.
+    if total is not None:
+        tolerance = max(5, int(total * 0.005))
+        if seen < total - tolerance:
+            raise RuntimeError(
+                f"byteplus {month}: {seen}/{total} 라인만 수신 "
+                f"(허용오차 {tolerance}) — 부분 데이터이므로 중단")
 
     rows = [{
         "source": "byteplus",
