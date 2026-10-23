@@ -419,13 +419,20 @@ def _bp_sign_and_get(ak: str, sk: str, action: str, query: dict) -> dict:
     return r.json()
 
 
-def _bp_month_rows(ak: str, sk: str, month: str) -> tuple[list[dict], int | None]:
-    """한 달치 Seedream(이미지 생성) 청구 라인 → (date, model)별 usage_daily 행."""
-    agg: dict[tuple[str, str], dict] = {}
-    latest_date = None
+def _bp_line_id(it: dict) -> str:
+    """청구 라인 고유 키. SplitBillDetailId 가 없을 때만 내용 조합으로 대체."""
+    lid = it.get("SplitBillDetailId")
+    if lid:
+        return str(lid)
+    return "|".join(str(it.get(f) or "") for f in (
+        "BillID", "ExpenseTime", "ConfigName", "Element", "Count", "PretaxAmount"))
+
+
+def _bp_scan_once(ak: str, sk: str, month: str) -> tuple[int | None, list[dict]]:
+    """offset 으로 한 바퀴 훑는다 → (첫 페이지 Total, 받은 라인들). 중복 가능."""
     offset, limit = 0, 300
-    total: int | None = None    # API 가 알려주는 전체 라인 수 (전 제품 기준)
-    seen = 0                    # 실제로 받아온 라인 수
+    total: int | None = None
+    out: list[dict] = []
     empty_retries = 0
     while True:
         body = _bp_sign_and_get(ak, sk, "ListSplitBillDetail", {
@@ -435,58 +442,74 @@ def _bp_month_rows(ak: str, sk: str, month: str) -> tuple[list[dict], int | None
         result = body.get("Result") or {}
         items = result.get("List") or []
         if result.get("Total") is not None and total is None:
-            # 첫 페이지의 Total 만 목표치로 고정한다. 당월은 조회하는 20초 사이에도
-            # 라인이 늘어나서, 매 페이지 Total 을 쓰면 영원히 따라잡지 못한다.
             total = int(result["Total"])
-
-        # 빈 페이지가 '끝'인지 '스로틀링된 부분응답'인지 구분한다.
-        # 예전엔 `not items` 면 무조건 완료로 봤다 → 스로틀 한 번에 과거 월까지
-        # 통째로 날아간 값이 정상으로 발행됐다 (2026-10-22: $3,053 → $524 발행 사고).
+        # 빈 페이지가 '끝'인지 '스로틀링된 부분응답'인지 구분한다
+        # (2026-10-22: 빈 페이지를 끝으로 봐서 $3,053 → $524 발행 사고).
         if not items:
             if total is not None and offset >= total:
-                break                       # 정상 종료
+                break
             if empty_retries < 3:
                 empty_retries += 1
                 time.sleep(2 * empty_retries)
-                continue                    # 같은 offset 재시도
+                continue
             raise RuntimeError(
                 f"byteplus {month}: offset {offset} 에서 빈 응답 (total={total}) — "
                 "부분 데이터 발행 방지를 위해 중단")
         empty_retries = 0
-        seen += len(items)
-
-        for it in items:
-            if (it.get("Product") or "") != BP_IMAGE_PRODUCT:
-                continue
-            d_raw = str(it.get("ExpenseTime") or "")[:10]
-            date = d_raw if len(d_raw) == 10 and d_raw[:4].isdigit() else f"{month}-01"
-            model = it.get("ConfigName") or "(unknown)"
-            key = (date, model)
-            if key not in agg:
-                agg[key] = {"cost": 0.0, "posttax": 0.0, "count": 0}
-            # ★ 보고 기준은 세전(PretaxAmount) — 인보이스 "Amount(pre-tax)" 이고,
-            #   시댄스 GAS·주간 리포트도 같은 기준이다. 세후를 쓰면 인보이스 미발행
-            #   월에 세금이 덜 붙어 있어(7월 3.25%, 8월 0%) 달마다 기준이 달라진다.
-            agg[key]["cost"] += float(it.get("PretaxAmount") or 0)       # 표시 기준
-            agg[key]["posttax"] += float(it.get("PosttaxAmount") or 0)   # 참고용(실지불)
-            agg[key]["count"] += 1
-            if latest_date is None or date > latest_date:
-                latest_date = date
+        out.extend(items)
         offset += limit
         if total is None or offset >= total:
             break
+    return total, out
 
-    # 완결성 검증: 받은 라인 수가 API 가 말한 전체보다 적으면 부분 데이터다.
-    # 여기서 예외를 던지면 run() 이 sync 를 'error' 로 기록 → build 의
-    # carry-forward 가 작동해 마지막 정상값 + '지연 중' 배지로 표시된다.
-    # 당월은 조회 중 신규 라인·정렬 변동으로 몇 건 어긋날 수 있다. 막으려는 건
-    # 페이지가 통째로 빠지는 '대량 누락'이므로 0.5%(최소 5건) 까지만 허용한다.
+
+def _bp_month_rows(ak: str, sk: str, month: str) -> tuple[list[dict], int | None]:
+    """한 달치 Seedream(이미지 생성) 청구 라인 → (date, model)별 usage_daily 행.
+
+    라인은 반드시 SplitBillDetailId 로 합집합한다. 당월은 조회하는 사이에도 새
+    라인이 앞쪽에 끼어들어 offset 페이지가 밀리고, 같은 라인이 두 페이지에 걸쳐
+    두 번 나온다. 그대로 더하면 이중 계산되고, 그만큼 다른 라인은 빠진다
+    (2026-10-23 실측: 한 바퀴에 204줄 중복 → 10월 +$76, 발행값이 5분마다
+    $843↔$926 출렁임). 고유 라인 수가 Total 에 못 미치면 다시 훑어 빈 곳을 메우고,
+    끝내 못 채우면 예외 → carry-forward(직전 정상값 + 지연 배지).
+    """
+    lines: dict[str, dict] = {}
+    total: int | None = None
+    for _pass in range(4):                 # 첫 훑기 + 메우기 최대 3번
+        t, items = _bp_scan_once(ak, sk, month)
+        if t is not None:
+            total = t if total is None else max(total, t)
+        for it in items:
+            lines[_bp_line_id(it)] = it    # 같은 라인은 최신 값으로 덮어씀
+        if total is None or len(lines) >= total:
+            break
+    # 당월은 마지막 훑기 이후에도 라인이 붙을 수 있어 0.5%(최소 5건)까지만 허용.
     if total is not None:
         tolerance = max(5, int(total * 0.005))
-        if seen < total - tolerance:
+        if len(lines) < total - tolerance:
             raise RuntimeError(
-                f"byteplus {month}: {seen}/{total} 라인만 수신 "
-                f"(허용오차 {tolerance}) — 부분 데이터이므로 중단")
+                f"byteplus {month}: 고유 라인 {len(lines)}/{total} — "
+                f"(허용오차 {tolerance}) 부분 데이터이므로 중단")
+
+    agg: dict[tuple[str, str], dict] = {}
+    latest_date = None
+    for it in lines.values():
+        if (it.get("Product") or "") != BP_IMAGE_PRODUCT:
+            continue
+        d_raw = str(it.get("ExpenseTime") or "")[:10]
+        date = d_raw if len(d_raw) == 10 and d_raw[:4].isdigit() else f"{month}-01"
+        model = it.get("ConfigName") or "(unknown)"
+        key = (date, model)
+        if key not in agg:
+            agg[key] = {"cost": 0.0, "posttax": 0.0, "count": 0}
+        # ★ 보고 기준은 세전(PretaxAmount) — 인보이스 "Amount(pre-tax)" 이고,
+        #   시댄스 GAS·주간 리포트도 같은 기준이다. 세후를 쓰면 인보이스 미발행
+        #   월에 세금이 덜 붙어 있어(7월 3.25%, 8월 0%) 달마다 기준이 달라진다.
+        agg[key]["cost"] += float(it.get("PretaxAmount") or 0)       # 표시 기준
+        agg[key]["posttax"] += float(it.get("PosttaxAmount") or 0)   # 참고용(실지불)
+        agg[key]["count"] += 1
+        if latest_date is None or date > latest_date:
+            latest_date = date
 
     rows = [{
         "source": "byteplus",
