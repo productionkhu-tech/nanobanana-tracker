@@ -112,12 +112,14 @@ def _load_local() -> Keys:
         raise RuntimeError(f"{config}: no gpt key file (.txt with sk-...)")
     api, admin = _parse_gpt_keys(gpt_file.read_text(encoding="utf-8"))
 
+    # GitHub 토큰(선택) — 로컬 push.py 가 원격 주소에 넣을 때만 쓴다.
+    # 없으면 git 자격 증명(gh auth setup-git)으로 push 한다 — 후임 PC 는 이쪽.
+    token = ""
     token_file = config / "github_token.txt"
-    if not token_file.exists():
-        raise RuntimeError(f"{token_file} missing")
-    token = token_file.read_text(encoding="utf-8").strip()
-    if not (token.startswith("ghp_") or token.startswith("github_pat_") or token.startswith("ghs_")):
-        raise RuntimeError("github_token.txt: not a recognized GitHub token prefix")
+    if token_file.exists():
+        token = token_file.read_text(encoding="utf-8").strip()
+        if not (token.startswith("ghp_") or token.startswith("github_pat_") or token.startswith("ghs_")):
+            raise RuntimeError("github_token.txt: not a recognized GitHub token prefix")
 
     # BytePlus AK/SK (선택) — config/byteplus_key.txt: 1행 AK, 2행 SK
     bp_ak = bp_sk = ""

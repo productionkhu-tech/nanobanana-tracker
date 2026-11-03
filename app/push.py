@@ -60,6 +60,9 @@ def ensure_repo(token: str, user: str, repo: str) -> None:
     # Always (re)set user identity — CI runners don't have it by default.
     run(["git", "config", "user.email", "tracker@local"], cwd=REPO)
     run(["git", "config", "user.name", "nanobanana-tracker"], cwd=REPO)
+    if not token:
+        # 토큰 파일 없는 로컬(후임 PC) — 원격 주소는 clone 그대로 두고 git 자격 증명(gh)으로 push
+        return
     # set/update remote with token-embedded URL (local-only file)
     remote_url = f"https://x-access-token:{token}@github.com/{user}/{repo}.git"
     existing = run(["git", "remote"], cwd=REPO).stdout.split()
