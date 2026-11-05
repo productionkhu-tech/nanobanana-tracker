@@ -18,6 +18,23 @@ def is_image_line(line_item: str) -> bool:
     return s.startswith("gpt-image") or "dall-e" in s or s.startswith("dalle")
 
 
+# GPT Image 2.6 의 SVG 는 이미지를 그린 뒤 gpt-5.5 가 벡터로 옮기고, 그 값이 청구서에
+# 'gpt-5.5-2026-04-23, input/output' 줄로 따로 찍힌다(저화질 SVG 는 비용의 약 85%).
+# 이미지를 만드는 데 든 돈이라 같이 센다.
+# ★ 날짜를 건다: 이 키는 이미지 전용이 아니다. 2026-09-24 에 SVG 와 무관한 gpt-5.5 $0.64 가 있다.
+#   SVG 는 2026-11-05 부터이고, 그날 줄 $1.18 이 SVG 실행들이 보고한 변환비 합 $1.17 과 맞는다.
+#   같은 키로 gpt-5.5 를 다른 데 쓰면 그 값도 여기 잡힌다 — 그래서 그런 일은 다른 키로 할 것.
+SVG_CONVERT_SINCE = "2026-11-05"
+SVG_CONVERT_LABEL = "gpt-5.5 (SVG 변환)"
+
+
+def is_counted_line(line_item: str, date: str) -> bool:
+    """대시보드에 들어가는 OpenAI 청구 줄인가: 이미지 줄 전부 + SVG 를 시작한 날부터의 변환 줄."""
+    if is_image_line(line_item):
+        return True
+    return date >= SVG_CONVERT_SINCE and (line_item or "").lower().startswith("gpt-5.5")
+
+
 def consolidate_openai_model(line_item: str) -> str:
     """토큰 종류(image/text, input/output)는 모델 하나로 합치되 모델은 구분한다.
 
@@ -33,6 +50,7 @@ def consolidate_openai_model(line_item: str) -> str:
     if m: return m.group(1)
     m = re.match(r"(dall-e\s*\d+)", s)
     if m: return m.group(1).replace("  ", " ")
+    if s.startswith("gpt-5.5"): return SVG_CONVERT_LABEL
     return line_item
 
 
@@ -174,7 +192,7 @@ def build_source_view(rows, source, include_pred, normalize_cat, primary_label, 
 
     for r in rows:
         if r["source"] != source: continue
-        if not include_pred(r["category"]): continue
+        if not include_pred(r["category"], r["date"]): continue
         d = r["date"]
         cost = r["cost_usd"] or 0.0
         cat = normalize_cat(r["category"])
@@ -390,17 +408,17 @@ def main() -> None:
               + ", ".join(f"{m}={fx_month_rate[m]:.2f}" for m in _ms[-4:]))
     nano, nano_carried = view_or_carry("gcp", "nanobanana", lambda: build_source_view(
         rows, source="gcp",
-        include_pred=lambda cat: cat in NANOBANANA_SERVICES,
+        include_pred=lambda cat, date: cat in NANOBANANA_SERVICES,
         normalize_cat=lambda cat: cat,
         primary_label="NanoBanana"))
     openai, oa_carried = view_or_carry("openai", "openai", lambda: build_source_view(
         rows, source="openai",
-        include_pred=is_image_line,
+        include_pred=is_counted_line,
         normalize_cat=consolidate_openai_model,
         primary_label="GPT Image", fx_for=fx_for))
     seed, seed_carried = view_or_carry("byteplus", "seedream", lambda: build_source_view(
         rows, source="byteplus",
-        include_pred=lambda cat: True,
+        include_pred=lambda cat, date: True,
         normalize_cat=consolidate_seedream_model,
         primary_label="Seedream", fx_for=fx_for))
 
