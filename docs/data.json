@@ -1,10 +1,10 @@
 {
   "schema_version": 9,
-  "generated_at": "2026-11-06T15:03:20+00:00",
+  "generated_at": "2026-11-06T15:07:24+00:00",
   "approx_krw_per_usd": 1343.255,
   "fx_source": "gcp_billing_export",
-  "last_refresh_ts": 1793977400,
-  "sync_status": "error",
+  "last_refresh_ts": 1793977644,
+  "sync_status": "ok",
   "current_year": 2026,
   "year_start_date": "2026-01-01",
   "today_date": "2026-11-06",
@@ -6317,10 +6317,13 @@
       ],
       "tag_color": "#7c3aed",
       "carried_forward": false,
-      "last_ok_ts": 1793977400
+      "last_ok_ts": 1793977644
     },
     "openai": {
       "primary_label": "GPT Image",
+      "krw_exact": false,
+      "date_basis": "UTC",
+      "today_date": "2026-11-06",
       "totals": {
         "today": {
           "cost": 147.7733,
@@ -8521,12 +8524,9 @@
           "krw": 1142419.17
         }
       ],
-      "krw_exact": false,
-      "date_basis": "UTC",
-      "today_date": "2026-11-06",
       "tag_color": "#10a37f",
-      "carried_forward": true,
-      "last_ok_ts": 1793977108
+      "carried_forward": false,
+      "last_ok_ts": 1793977644
     },
     "seedream": {
       "primary_label": "Seedream",
@@ -10603,7 +10603,7 @@
       ],
       "tag_color": "#2563eb",
       "carried_forward": false,
-      "last_ok_ts": 1793977400
+      "last_ok_ts": 1793977644
     }
   },
   "notes": {
