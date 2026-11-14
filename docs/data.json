@@ -1,29 +1,29 @@
 {
   "schema_version": 9,
-  "generated_at": "2026-11-14T07:56:45+00:00",
+  "generated_at": "2026-11-14T08:02:35+00:00",
   "approx_krw_per_usd": 1343.255,
   "fx_source": "gcp_billing_export",
-  "last_refresh_ts": 1794643005,
-  "sync_status": "error",
+  "last_refresh_ts": 1794643355,
+  "sync_status": "ok",
   "current_year": 2026,
   "year_start_date": "2026-01-01",
   "today_date": "2026-11-14",
   "totals_combined": {
     "today": {
-      "cost": 7.575,
-      "krw": 10175.11
+      "cost": 0.0,
+      "krw": 0.0
     },
     "yesterday": {
-      "cost": 184.7853,
-      "krw": 248213.79
+      "cost": 95.5151,
+      "krw": 128301.09
     },
     "week": {
       "cost": 1404.98,
       "krw": 1887246.39
     },
     "last_week_same_day": {
-      "cost": 10.7525,
-      "krw": 14443.37
+      "cost": 0.0,
+      "krw": 0.0
     },
     "month": {
       "cost": 3302.4472,
@@ -34,12 +34,12 @@
       "krw": 6317875.79
     },
     "last_month_to_date": {
-      "cost": 1303.5744,
-      "krw": 1771231.72
+      "cost": 1365.4887,
+      "krw": 1855357.84
     },
     "month_projection": {
-      "cost": 7246.9257,
-      "krw": 9734469.05
+      "cost": 7076.6727,
+      "krw": 9505775.9
     },
     "year": {
       "cost": 52067.9768,
@@ -47,17 +47,6 @@
     }
   },
   "combined_daily": [
-    {
-      "date": "2025-11-14",
-      "nano": 0.0,
-      "gpt": 0.0,
-      "seed": 0.0,
-      "total": 0.0,
-      "nano_krw": 0.0,
-      "gpt_krw": 0.0,
-      "seed_krw": 0.0,
-      "total_krw": 0.0
-    },
     {
       "date": "2025-11-15",
       "nano": 0.0,
@@ -4339,23 +4328,23 @@
       "primary_label": "NanoBanana",
       "krw_exact": true,
       "date_basis": "US/Pacific",
-      "today_date": "2026-11-13",
+      "today_date": "2026-11-14",
       "totals": {
         "today": {
-          "cost": 7.575,
-          "krw": 10175.11
+          "cost": 0.0,
+          "krw": 0.0
         },
         "yesterday": {
-          "cost": 96.8452,
-          "krw": 130087.81
+          "cost": 7.575,
+          "krw": 10175.11
         },
         "week": {
           "cost": 492.0665,
           "krw": 660970.74
         },
         "last_week_same_day": {
-          "cost": 10.7525,
-          "krw": 14443.37
+          "cost": 0.0,
+          "krw": 0.0
         },
         "month": {
           "cost": 1032.868,
@@ -4366,12 +4355,12 @@
           "krw": 1701550.1
         },
         "last_month_to_date": {
-          "cost": 294.4331,
-          "krw": 400060.96
+          "cost": 356.3474,
+          "krw": 484187.08
         },
         "month_projection": {
-          "cost": 2383.5416,
-          "krw": 3201704.11
+          "cost": 2213.2886,
+          "krw": 2973010.96
         },
         "year": {
           "cost": 27040.9571,
@@ -4381,14 +4370,13 @@
       "category_table": [
         {
           "category": "Gemini API",
-          "today": 5.5289,
+          "today": 0.0,
           "month": 675.129,
           "total": 19738.2999,
-          "today_krw": 7426.79,
+          "today_krw": 0.0,
           "month_krw": 906870.43,
           "total_krw": 29126574.22,
           "sparkline": [
-            18.9285,
             15.882,
             41.4358,
             30.9819,
@@ -4417,19 +4405,19 @@
             69.0542,
             58.824,
             70.653,
-            5.5289
+            5.5289,
+            0.0
           ]
         },
         {
           "category": "Vertex AI",
-          "today": 2.046,
+          "today": 0.0,
           "month": 357.739,
           "total": 7302.6572,
-          "today_krw": 2748.32,
+          "today_krw": 0.0,
           "month_krw": 480534.69,
           "total_krw": 10668551.71,
           "sparkline": [
-            5.0656,
             9.8243,
             11.1169,
             10.9962,
@@ -4458,16 +4446,12 @@
             25.9136,
             33.8893,
             26.1922,
-            2.046
+            2.046,
+            0.0
           ]
         }
       ],
       "daily": [
-        {
-          "date": "2025-11-14",
-          "cost": 0.0,
-          "krw": 0.0
-        },
         {
           "date": "2025-11-15",
           "cost": 0.0,
@@ -6287,6 +6271,11 @@
           "date": "2026-11-13",
           "cost": 7.575,
           "krw": 10175.11
+        },
+        {
+          "date": "2026-11-14",
+          "cost": 0.0,
+          "krw": 0.0
         }
       ],
       "monthly": [
@@ -6328,7 +6317,7 @@
       ],
       "tag_color": "#7c3aed",
       "carried_forward": false,
-      "last_ok_ts": 1794643005
+      "last_ok_ts": 1794643355
     },
     "openai": {
       "primary_label": "GPT Image",
@@ -8537,10 +8526,13 @@
       ],
       "tag_color": "#10a37f",
       "carried_forward": false,
-      "last_ok_ts": 1794643005
+      "last_ok_ts": 1794643355
     },
     "seedream": {
       "primary_label": "Seedream",
+      "krw_exact": false,
+      "date_basis": "UTC+8",
+      "today_date": "2026-11-14",
       "totals": {
         "today": {
           "cost": 0.0,
@@ -10650,12 +10642,9 @@
           "krw": 1229830.55
         }
       ],
-      "krw_exact": false,
-      "date_basis": "UTC+8",
-      "today_date": "2026-11-14",
       "tag_color": "#2563eb",
-      "carried_forward": true,
-      "last_ok_ts": 1794642760
+      "carried_forward": false,
+      "last_ok_ts": 1794643355
     }
   },
   "notes": {
